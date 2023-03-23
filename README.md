@@ -10,7 +10,14 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [x] MessagePackSerializer
   - [x] tests
 - [ ] *network*
-  - [ ] UDPProtocol
+  - [ ] UDPTransport
+    - [ ] init(self,local_address,receive_callback)
+      - [ ] sets class variables
+      - [ ] schedules a task for receive
+    - [ ] receive(self) -> activates receive_callback whenever something is read
+    - [ ] send(self, data, remote_address) -> sends out data to other nodes
+    - [ ] close: cancels all tasks (send and receive)
+    - [Documentation UDP Echo Server/Client](https://docs.python.org/3/library/asyncio-protocol.html#udp-echo-server)
   - [ ] tests
 - [ ] *storage*
   - [ ] FileDict
