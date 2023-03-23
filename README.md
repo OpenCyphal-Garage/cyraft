@@ -4,6 +4,43 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ## TODO
 
+- [x] *log*
+  - [x] logger
+- [x] serializer
+  - [x] MessagePackSerializer
+  - [x] tests
+- [ ] *network*
+  - [ ] UDPProtocol
+  - [ ] tests
+- [ ] *storage*
+  - [ ] FileDict
+  - [ ] Log
+  - [ ] StageMachine
+  - [ ] FileStorage
+  - [ ] tests
+- [ ] *timer*
+  - [ ] Timer
+  - [ ] tests
+- [ ] *state*
+  - [ ] BaseState
+    - [ ] Leader
+    - [ ] Candidate
+    - [ ] Follower
+  - [ ] State: Abstraction layer between Server & Raft State and Storage/Log & Raft State
+  - [ ] tests
+- [ ] *server*
+  - [ ] Node
+  - [ ] tests
+
+- [ ] Initially all communication is done through sockets using `UDPProtocol`, however eventually the goal is to replace this communication with an instance of `Transport` (`pycphal/transport`)
+- [ ] `MessagePackSerializer` is packed into a `Transfer` instance in pycyphal.
+
+- [ ] typing
+- [ ] class structuring/
+  - [ ] @property
+  - [ ] @abc.abstractmethod
+  - [ ] @staticmethod
+
 ## Architecture
 
 ## Sources
@@ -11,6 +48,8 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 [Raft paper](https://raft.github.io/raft.pdf)
 
 [lynix94/pyraft](https://github.com/lynix94/pyraft)
+
+[zhebrak/raftos](https://github.com/zhebrak/raftos)
 
 [An exploratory study: UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872)
 
