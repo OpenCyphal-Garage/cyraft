@@ -17,7 +17,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [x] Timer
   - [x] tests
 - [ ] *storage*
-  - [ ] FileDict
+  - [x] FileDict
   - [ ] Log
   - [ ] StageMachine
   - [ ] FileStorage
