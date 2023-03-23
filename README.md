@@ -9,18 +9,18 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 - [x] serializer
   - [x] MessagePackSerializer
   - [x] tests
-- [ ] *network*
-  - [ ] UDPTransport
+- [x] *network*
+  - [x] UDPTransport
     - [Documentation UDP Echo Server/Client](https://docs.python.org/3/library/asyncio-protocol.html#udp-echo-server)
+  - [x] tests
+- [ ] *timer*
+  - [ ] Timer
   - [ ] tests
 - [ ] *storage*
   - [ ] FileDict
   - [ ] Log
   - [ ] StageMachine
   - [ ] FileStorage
-  - [ ] tests
-- [ ] *timer*
-  - [ ] Timer
   - [ ] tests
 - [ ] *state*
   - [ ] BaseState
