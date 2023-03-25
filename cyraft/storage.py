@@ -2,13 +2,15 @@ import os
 
 from .util.serializers import MessagePackSerializer
 
+LOG_DIRECTORY = "logs_cyraft/"
+
 
 class FileDict:
     """Persistent dict-like storage on a disk accessible by obj['item_name']"""
 
     def __init__(self, filename: str, serializer=None):
         self.filename = os.path.join(
-            "logs/", "{}.log".format(filename.replace(":", "_"))
+            LOG_DIRECTORY, "{}.log".format(filename.replace(":", "_"))
         )
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
         open(self.filename, "a").close()
@@ -91,7 +93,7 @@ class Log:
 
     def __init__(self, node_id, serializer=None):
         self.filename = os.path.join(
-            "logs/", "{}.log".format(node_id.replace(":", "_"))
+            LOG_DIRECTORY, "{}.log".format(node_id.replace(":", "_"))
         )
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
         open(self.filename, "a").close()
@@ -170,6 +172,39 @@ class Log:
         if self.cache:
             return self.cache[-1]["term"]
         return 0
+
+
+class StateMachine(FileDict):
+    """Raft Replicated State Machine — dict"""
+
+    def __init__(self, node_id):
+        filename = os.path.join(LOG_DIRECTORY, "{}.state_machine".format(node_id))
+        super().__init__(filename)
+
+    def apply(self, command):
+        """Apply command to State Machine"""
+
+        self.update(command)
+
+
+class FileStorage(FileDict):
+    """Persistent storage
+
+    — term — latest term server has seen (initialized to 0 on first boot, increases monotonically)
+    — voted_for — candidate_id that received vote in current term (or None)
+    """
+
+    def __init__(self, node_id):
+        filename = os.path.join(LOG_DIRECTORY, "{}.storage".format(node_id))
+        super().__init__(filename)
+
+    @property
+    def term(self):
+        return self["term"]
+
+    @property
+    def voted_for(self):
+        return self["voted_for"]
 
 
 # ----------------------------------------  TESTS GO BELOW THIS LINE  ----------------------------------------
