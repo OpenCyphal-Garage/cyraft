@@ -6,9 +6,12 @@ from .util.serializers import MessagePackSerializer
 class FileDict:
     """Persistent dict-like storage on a disk accessible by obj['item_name']"""
 
-    def __init__(self, filename, serializer=None):
-        self.filename = filename
+    def __init__(self, filename: str, serializer=None):
+        self.filename = os.path.join(
+            "logs/", "{}.log".format(filename.replace(":", "_"))
+        )
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+        open(self.filename, "a").close()
 
         self.cache = {}
         self.serializer = MessagePackSerializer() if serializer is None else serializer
@@ -174,7 +177,7 @@ class Log:
 
 def _unittest_storage_filedict() -> None:
     # Create a filedict
-    filename = "logs/test_filedict"
+    filename = "filedict"
     filedict = FileDict(filename=filename)
 
     # Check that it is empty
@@ -197,6 +200,9 @@ def _unittest_storage_filedict() -> None:
 
     # Delete the item
     del filedict["test"]
+
+    # Check that it is empty
+    assert filedict._get_file_content() == {}
 
     # Check that it raises KeyError
     try:
