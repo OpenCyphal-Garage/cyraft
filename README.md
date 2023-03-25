@@ -4,34 +4,34 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ## TODO
 
-- [x] *log*
-  - [x] logger
-- [x] serializer
-  - [x] MessagePackSerializer
-  - [x] tests
-- [x] *network*
-  - [x] UDPTransport
-    - [Documentation UDP Echo Server/Client](https://docs.python.org/3/library/asyncio-protocol.html#udp-echo-server)
-  - [x] tests
-- [x] *timer*
-  - [x] Timer
-  - [x] tests
-- [ ] *storage*
-  - [x] FileDict
-  - [ ] Log
-  - [ ] StageMachine
-  - [ ] FileStorage
-  - [ ] tests
-- [ ] *state*
-  - [ ] BaseState
-    - [ ] Leader
-    - [ ] Candidate
-    - [ ] Follower
-  - [ ] State: Abstraction layer between Server & Raft State and Storage/Log & Raft State
-  - [ ] tests
-- [ ] *server*
-  - [ ] Node
-  - [ ] tests
+- CYRAFT/UTIL
+  - [x] *serializer*
+    - [x] MessagePackSerializer
+    - [x] tests
+  - [x] *network*
+    - [x] UDPTransport
+      - [Documentation UDP Echo Server/Client](https://docs.python.org/3/library/asyncio-protocol.html#udp-echo-server)
+    - [x] tests
+  - [x] *timer*
+    - [x] Timer
+    - [x] tests
+- CYRAFT
+  - [ ] *storage*
+    - [x] FileDict
+    - [ ] Log
+    - [ ] StageMachine
+    - [ ] FileStorage
+    - [ ] tests
+  - [ ] *state*
+    - [ ] BaseState
+      - [ ] Leader
+      - [ ] Candidate
+      - [ ] Follower
+    - [ ] State: Abstraction layer between Server & Raft State and Storage/Log & Raft State
+    - [ ] tests
+  - [ ] *server*
+    - [ ] Node
+    - [ ] tests
 
 - [ ] Initially all communication is done through sockets using `UDPProtocol`, however eventually the goal is to replace this communication with an instance of `Transport` (`pycphal/transport`)
 - [ ] `MessagePackSerializer` is packed into a `Transfer` instance in pycyphal.
@@ -41,8 +41,6 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [ ] @property
   - [ ] @abc.abstractmethod
   - [ ] @staticmethod
-
-## Architecture
 
 ## Sources
 

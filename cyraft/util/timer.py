@@ -1,10 +1,11 @@
 import asyncio
+import typing
 
 
 class Timer:
     """Scheduling periodic callbacks"""
 
-    def __init__(self, interval, callback):
+    def __init__(self, interval: typing.Union[int, float], callback: typing.Callable):
         self.interval = interval
         self.callback = callback
         self.loop = asyncio.get_running_loop()

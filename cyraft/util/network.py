@@ -1,19 +1,17 @@
 import asyncio
+import logging
+import typing
 
-from .log import logger
 from .serializers import MessagePackSerializer
 
-# from .conf import config
+_logger = logging.getLogger(__name__)
 
 
 class UDPProtocol(asyncio.DatagramProtocol):
-    def __init__(self, queue, request_handler):  # serializer=None, cryptor=None):
+    def __init__(self, queue: asyncio.Queue, request_handler: typing.Callable):
         self.queue = queue
         self.serializer = MessagePackSerializer()
-        # self.serializer = serializer or config.serializer
-        # self.cryptor = cryptor or config.cryptor
         self.request_handler = request_handler
-        # self.loop = loop
 
     def __call__(self):
         return self
@@ -21,19 +19,17 @@ class UDPProtocol(asyncio.DatagramProtocol):
     async def start(self):
         while not self.transport.is_closing():
             request = await self.queue.get()
-            # data = self.cryptor.encrypt(self.serializer.pack(request["data"]))
             data = self.serializer.pack(request["data"])
             self.transport.sendto(data, request["destination"])
 
-    def connection_made(self, transport):
+    def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
-        # asyncio.ensure_future(self.start(), loop=asyncio.get_running_loop())
         loop = asyncio.get_running_loop()
         self.task = loop.create_task(self.start())
 
-    def datagram_received(self, data, sender):
+    def datagram_received(self, data: bytes, sender: typing.Tuple[str, int]):
         message = data.decode()
-        logger.info(f"Received {message} from {sender}")
+        _logger.debug(f"Received {message} from {sender}")
         self.request_handler(message)
 
     def close(self):
@@ -52,7 +48,7 @@ async def _unittest_network_udp_protocol() -> None:
     def receive_handler(data):
         nonlocal receive_toggle
         receive_toggle = True
-        print(f"Received {data}")
+        _logger.debug(f"Received {data}")
 
     loop = asyncio.get_running_loop()
 
