@@ -4,6 +4,21 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ## TODO
 
+- [ ] Finish study pycyphal communication layer
+  - [ ] [maksimdrachov/opencyphal-tutorial](https://github.com/maksimdrachov/opencyphal-tutorial)
+    - [ ] pycyphal
+    - [ ] yakut
+- [ ] Re-implement cyraft using pycyphal classes/functions:
+  - [ ] serializers
+  - [ ] network
+- [ ] Implement first iteration of state/server classes
+  - use dependency injection
+  - disintegrate dependency between classes (as implemented in raftos) in order to make unit testing easier/more consistent
+- [ ] once all unit tests are implemented/working, implement ci pipeline usign github actions
+- [ ] once raft functionality works, review
+- [ ] implement named topics functionality
+- [ ] prepare `cyraft` demo
+
 - CYRAFT/UTIL
   - [x] *serializer*
     - [x] MessagePackSerializer
@@ -16,12 +31,12 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [x] Timer
     - [x] tests
 - CYRAFT
-  - [ ] *storage*
+  - [x] *storage*
     - [x] FileDict
-    - [ ] Log
-    - [ ] StageMachine
-    - [ ] FileStorage
-    - [ ] tests
+    - [x] Log
+    - [x] StageMachine
+    - [x] FileStorage
+    - [x] tests
   - [ ] *state*
     - [ ] BaseState
       - [ ] Leader
@@ -49,6 +64,8 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 [lynix94/pyraft](https://github.com/lynix94/pyraft)
 
 [zhebrak/raftos](https://github.com/zhebrak/raftos)
+
+[dronecan/libuavcan](https://github.com/dronecan/libuavcan/tree/main/libuavcan/include/uavcan/protocol/dynamic_node_id_server/distributed)
 
 [An exploratory study: UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872)
 
