@@ -4,58 +4,80 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ## TODO
 
-- [ ] Finish study pycyphal communication layer
-  - [ ] [maksimdrachov/opencyphal-tutorial](https://github.com/maksimdrachov/opencyphal-tutorial)
-    - [ ] pycyphal
-    - [ ] yakut
-- [ ] Re-implement cyraft using pycyphal classes/functions:
-  - [ ] serializers
-  - [ ] network
-- [ ] Implement first iteration of state/server classes
-  - use dependency injection
-  - disintegrate dependency between classes (as implemented in raftos) in order to make unit testing easier/more consistent
-- [ ] once all unit tests are implemented/working, implement ci pipeline usign github actions
-- [ ] once raft functionality works, review
-- [ ] implement named topics functionality
-- [ ] prepare `cyraft` demo
+- [x] Finish study pycyphal communication layer
+- [ ] `demo_node.py`
 
-- CYRAFT/UTIL
-  - [x] *serializer*
-    - [x] MessagePackSerializer
-    - [x] tests
-  - [x] *network*
-    - [x] UDPTransport
-      - [Documentation UDP Echo Server/Client](https://docs.python.org/3/library/asyncio-protocol.html#udp-echo-server)
-    - [x] tests
-  - [x] *timer*
-    - [x] Timer
-    - [x] tests
-- CYRAFT
-  - [x] *storage*
-    - [x] FileDict
-    - [x] Log
-    - [x] StageMachine
-    - [x] FileStorage
-    - [x] tests
-  - [ ] *state*
-    - [ ] BaseState
-      - [ ] Leader
-      - [ ] Candidate
-      - [ ] Follower
-    - [ ] State: Abstraction layer between Server & Raft State and Storage/Log & Raft State
-    - [ ] tests
-  - [ ] *server*
-    - [ ] Node
-    - [ ] tests
+## Graphs
 
-- [ ] Initially all communication is done through sockets using `UDPProtocol`, however eventually the goal is to replace this communication with an instance of `Transport` (`pycphal/transport`)
-- [ ] `MessagePackSerializer` is packed into a `Transfer` instance in pycyphal.
+```mermaid
+---
+title: cyraft node X
+---
+flowchart TB
+    subgraph 1X:org.opencyphal.pycyphal.raft.node
+        direction TB
+        subgraph heartbeat_publisher
+            direction TB
+            heartbeat_publisher_1[/uavcan.node.Heartbeat.1.0\]
+        end
+        heartbeat_publisher --> uavcan.node.heartbeat
+        subgraph RequestVoteRPC
+            direction TB
+            request_vote_1{{uavcan.node.RequestVoteRPC}}
+        end
+        10X:uavcan.node.RequestVote.Request --> RequestVoteRPC
+        RequestVoteRPC --> 10X:uavcan.node.RequestVote.Response
+        subgraph AppendEntriesRPC
+            direction TB
+            append_entries_1{{uavcan.node.AppendEntriesRPC}}
+        end
+        11X:uavcan.node.AppendEntriesRPC.Request --> AppendEntriesRPC
+        AppendEntriesRPC --> 11X:uavcan.node.AppendEntriesRPC.Response
+    end
+```
 
-- [ ] typing
-- [ ] class structuring/
-  - [ ] @property
-  - [ ] @abc.abstractmethod
-  - [ ] @staticmethod
+DSDL datatypes
+
+```mermaid
+---
+title: RequestVote
+---
+classDiagram
+    class RequestVote_Request{
+        -int term
+        -int candidateID
+        -int lastLogIndex
+        -int lastLogTerm
+    }
+
+    class RequestVote_Response{
+        -int term
+        -bool voteGranted
+
+    }
+```
+
+```mermaid
+---
+title: AppendEntries
+---
+classDiagram
+    class AppendEntries_Request{
+        -int term
+        -int leaderID
+        -int prevLogIndex
+        -int prevLogIndex
+        -int prevLogTerm
+        -entry entry
+        -int leaderCommit
+    }
+
+    class AppendEntries_Response{
+        -int term
+        -bool success
+
+    }
+```
 
 ## Sources
 

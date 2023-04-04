@@ -28,7 +28,8 @@ class UDPProtocol(asyncio.DatagramProtocol):
         self.task = loop.create_task(self.start())
 
     def datagram_received(self, data: bytes, sender: typing.Tuple[str, int]):
-        message = data.decode()
+        # message = data.decode()
+        message = self.serializer.unpack(data)
         _logger.debug(f"Received {message} from {sender}")
         self.request_handler(message)
 
