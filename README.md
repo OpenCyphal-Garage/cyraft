@@ -9,6 +9,51 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 - [ ] class diagrams cyraft
 - [ ] implement cyraft
 
+## Setup
+
+- Clone repo
+
+    ```bash
+    git clone https://github.com/maksimdrachov/cyraft_project
+    ```
+
+- Virtual environment
+
+    ```bash
+    cd ~/cyraft
+    python3 -m venv env
+    source env/bin/activate
+    ```
+ 
+- Install requirements (pycyphal)
+
+    ```bash
+    cd ~/cyraft
+    pip3 install -r requirements.txt
+    ```
+
+-   ```bash
+    cd ~/cyraft/demo
+    git clone https://github.com/OpenCyphal/public_regulated_data_types
+    ```
+
+-   ```bash
+    export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
+    ```
+
+- Set environment variables (registers)
+
+    ```bash
+    cd ~/cyraft
+    source my_env.sh
+    ```
+
+- Run the demo
+
+    ```bash
+    python3 demo/demo_node.py
+    ```
+
 ## Diagrams
 
 ### demo_node
