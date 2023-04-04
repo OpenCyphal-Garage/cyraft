@@ -6,8 +6,12 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 - [x] Finish study pycyphal communication layer
 - [ ] `demo_node.py`
+- [ ] class diagrams cyraft
+- [ ] implement cyraft
 
-## Graphs
+## Diagrams
+
+### demo_node
 
 ```mermaid
 ---
@@ -21,22 +25,22 @@ flowchart TB
             heartbeat_publisher_1[/uavcan.node.Heartbeat.1.0\]
         end
         heartbeat_publisher --> uavcan.node.heartbeat
-        subgraph RequestVoteRPC
+        subgraph request_vote_rpc
             direction TB
-            request_vote_1{{uavcan.node.RequestVoteRPC}}
+            request_vote_1{{sirius_cyber_corp.RequestVoteRPC}}
         end
-        10X:uavcan.node.RequestVote.Request --> RequestVoteRPC
-        RequestVoteRPC --> 10X:uavcan.node.RequestVote.Response
-        subgraph AppendEntriesRPC
+        10X:sirius_cyber_corp.RequestVote.Request --> request_vote_rpc
+        request_vote_rpc --> 10X:sirius_cyber_corp.RequestVote.Response
+        subgraph append_entries_rpc
             direction TB
-            append_entries_1{{uavcan.node.AppendEntriesRPC}}
+            append_entries_1{{sirius_cyber_corp.AppendEntriesRPC}}
         end
-        11X:uavcan.node.AppendEntriesRPC.Request --> AppendEntriesRPC
-        AppendEntriesRPC --> 11X:uavcan.node.AppendEntriesRPC.Response
+        11X:sirius_cyber_corp.AppendEntriesRPC.Request --> append_entries_rpc
+        append_entries_rpc --> 11X:sirius_cyber_corp.AppendEntriesRPC.Response
     end
 ```
 
-DSDL datatypes
+### DSDL datatypes
 
 ```mermaid
 ---
