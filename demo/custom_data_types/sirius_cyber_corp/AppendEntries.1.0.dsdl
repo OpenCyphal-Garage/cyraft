@@ -1,0 +1,18 @@
+# This service is used for the AppendEntries RPC
+
+uint64 term
+uint64 leaderID
+uint64 prevLogIndex
+uint64 prevLogTerm
+#[]LogEntry entries
+string entries
+uint64 leaderCommit
+
+@sealed
+
+---
+
+uint64 term
+bool voteGranted
+
+@sealed

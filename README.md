@@ -115,7 +115,6 @@ classDiagram
         -int term
         -int leaderID
         -int prevLogIndex
-        -int prevLogIndex
         -int prevLogTerm
         -entry entry
         -int leaderCommit

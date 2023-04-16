@@ -1,0 +1,15 @@
+# This service is used for the RequestVote RPC
+
+uint64 term
+uint64 candidateID
+uint64 lastLogIndex
+uint64 lastLogTerm
+
+@sealed
+
+---
+
+uint64 term
+bool voteGranted
+
+@sealed
