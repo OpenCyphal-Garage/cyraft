@@ -2,6 +2,16 @@
 
 This is an exercise in implemeting the Raft algorithm, as it could be useful within pycyphal, in order to implement "named topics". The reason why we're interested in supporting "named topics": this could (eventually) be leveraged to allow Cyphal to function as a communication layer between PX4 and ROS. (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
+- [Cyraft](#cyraft)
+  - [TODO](#todo)
+  - [Setup](#setup)
+    - [Request Vote](#request-vote)
+  - [Diagrams](#diagrams)
+    - [demo\_node](#demo_node)
+    - [DSDL datatypes](#dsdl-datatypes)
+  - [Sources](#sources)
+
+
 ## TODO
 
 - [x] Finish study pycyphal application layer
@@ -10,9 +20,23 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [ ] Implement `request_vote_rpc`
     - [ ] Add orchestration so there's 3 nodes running simultanously
-    - [ ] Refactor code
   - [ ] append_entries_rpc
+-  [ ] Refactor code into `cyraft`
 
+Questions:
+- [ ] how the logging works (doesn't show?)
+- [ ] request_vote is not responding?
+  - [ ] in demo_node example the service is not being called in run(), however it does work when called
+  - [ ] I suspect maybe I need to use the library in "IoC-style by using receive_in_background()", however not sure how this looks in code, please bear with me and use simple words.
+- [ ] how to retrieve the node id
+  - [ ] can't be static method?
+  - [ ] needs self
+  - [ ] but if i do that it doesn't work
+- [ ] Any reason why all _serve_execute_command (and all those types of functions) use async. As per ChatGPT: 
+
+    ```
+    However, if an async function does not involve any asynchronous operations or does not have any await expressions, it might not make much sense to declare it as an async function. In such cases, a regular synchronous function might be a better option.
+    ```
 
 ## Setup
 
@@ -59,13 +83,12 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     python3 demo/demo_node.py
     ```
 
-> **_NOTE:_**  Sometimes this can give an error if it's using old datatypes, try to remove ~/.pycyphal and recompile DSDL datatypes (running previous command will do this automatically)
+    > **_NOTE:_**  Sometimes this can give an error if it's using old datatypes, try to remove ~/.pycyphal and recompile DSDL datatypes (running previous command will do this automatically)
+    >   ```bash
+    >   rm -rf ~/.pycyphal
+    >   ```
 
-    ```bash
-    rm -rf ~/.pycyphal
-    ```
-
-### Request Vote RPC
+### Request Vote
 
 While running the previous `demo_node.py`, in a new terminal window:
 
@@ -83,7 +106,7 @@ While running the previous `demo_node.py`, in a new terminal window:
 - Send an RPC to request_vote (using `yakut`)
 
     ```bash
-    y q 42 request_vote_rpc '[1,1,1,1]'
+    y q 42 request_vote '[1,1,1,1]'
     ```
 
     ![request-vote-rpc](images/request_vote_rpc.png)

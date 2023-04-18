@@ -19,6 +19,8 @@ import uavcan.node  # noqa
 
 UPDATE_PERIOD = 0.1  # [s]
 
+_logger = logging.getLogger(__name__)
+
 
 class DemoNode:
     REGISTER_FILE = "demo_node.db"
@@ -45,14 +47,13 @@ class DemoNode:
 
         # Create an RPC-server. (RequestVote)
         try:
-            print("Request vote service is enabled", file=sys.stderr)
+            _logger.info("Request vote service is enabled")
             srv_request_vote = self._node.get_server(
                 sirius_cyber_corp.RequestVote_1, "request_vote"
             )
             srv_request_vote.serve_in_background(self._serve_request_vote)
-            logging.info("Request vote service is enabled")
         except pycyphal.application.register.MissingRegisterError:
-            logging.info(
+            _logger.info(
                 "The request vote service is disabled by configuration (UAVCAN__SRV__REQUEST_VOTE__ID missing)"
             )
 
@@ -76,14 +77,35 @@ class DemoNode:
 
     @staticmethod
     async def _serve_request_vote(
+        # self,
         request: sirius_cyber_corp.RequestVote_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.RequestVote_1.Response:
-        # TODO: implement this
-        logging.info(
-            "Request vote request %s from node %d", request, metadata.client_node_id
+        _logger.info(
+            "\033[94m Request vote request %s from node %d \033[0m",
+            request,
+            metadata.client_node_id,
         )
-        print("Request vote request received!", file=sys.stderr)
+
+        # Reply false if term < currentTerm (§5.1)
+        node_id = 1  # TODO: get node id from self
+        if request.term < node_id:
+            return sirius_cyber_corp.RequestVote_1.Response(
+                term=1,  # TODO: get term from self
+                vote_granted=False,
+            )
+
+        # If votedFor is null or candidateId, and candidate’s log is at
+        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
+        votedFor = 2  # TODO: get votedFor from self
+        if votedFor is None or votedFor == request.candidate_id:
+            return sirius_cyber_corp.RequestVote_1.Response(
+                term=1,  # TODO: get term from self
+                vote_granted=True,
+            )
+
+        _logger.error("Should not reach here!")
+
         return sirius_cyber_corp.RequestVote_1.Response(
             term=1,
             vote_granted=True,
@@ -95,7 +117,7 @@ class DemoNode:
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.AppendEntries_1.Response:
         # TODO: implement this
-        logging.info(
+        _logger.info(
             "Append entries request %s from node %d", request, metadata.client_node_id
         )
         return sirius_cyber_corp.AppendEntries_1.Response(
@@ -108,7 +130,7 @@ class DemoNode:
         request: uavcan.node.ExecuteCommand_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> uavcan.node.ExecuteCommand_1.Response:
-        logging.info(
+        _logger.info(
             "Execute command request %s from node %d", request, metadata.client_node_id
         )
         if (
@@ -133,8 +155,8 @@ class DemoNode:
         The main method that runs the business logic. It is also possible to use the library in an IoC-style
         by using receive_in_background() for all subscriptions if desired.
         """
-        logging.info("Application Node started!")
-        print("Running. Press Ctrl+C to stop.", file=sys.stderr)
+        _logger.info("Application Node started!")
+        _logger.info("Running. Press Ctrl+C to stop.")
 
         # Run the main loop forever.
         next_update_at = asyncio.get_running_loop().time()
@@ -152,7 +174,10 @@ class DemoNode:
 
 
 async def main() -> None:
-    logging.root.setLevel(logging.INFO)
+    logging.root.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stderr)
+    _logger.addHandler(handler)
+    _logger.info("Starting the application...")
     app = DemoNode()
     try:
         await app.run()
