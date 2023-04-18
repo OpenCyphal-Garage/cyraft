@@ -33,10 +33,6 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 ### Questions
 
 - request_vote is not responding?
-- how to retrieve the node id
-  - can't be static method?
-  - needs self
-  - but if i do that it doesn't work
 
 ## Setup
 

@@ -75,9 +75,8 @@ class DemoNode:
 
         self._node.start()  # Don't forget to start the node!
 
-    @staticmethod
     async def _serve_request_vote(
-        # self,
+        self,
         request: sirius_cyber_corp.RequestVote_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.RequestVote_1.Response:
@@ -88,17 +87,15 @@ class DemoNode:
         )
 
         return sirius_cyber_corp.RequestVote_1.Response(
-            term=1,
+            term=1,  # TODO: get term
             vote_granted=True,
         )
 
         # Reply false if term < currentTerm (§5.1)
-        node_id = 1  # TODO: get node id from self
-        if request.term < node_id:
+        if request.term < self._node.id:
             return sirius_cyber_corp.RequestVote_1.Response(
-                term=1,  # TODO: get term from self
-                vote_granted=False,
-            )
+                term=1, vote_granted=False
+            )  # TODO: get term
 
         # If votedFor is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
