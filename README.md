@@ -4,12 +4,11 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 - [Cyraft](#cyraft)
   - [TODO](#todo)
-    - [Questions](#questions)
   - [Setup](#setup)
       - [Vscode debug setup](#vscode-debug-setup)
     - [Request Vote](#request-vote)
   - [Diagrams](#diagrams)
-    - [demo\_node](#demo_node)
+    - [demo\_cyraft](#demo_cyraft)
     - [DSDL datatypes](#dsdl-datatypes)
     - [Test setups](#test-setups)
       - [1 node + 1 (yakut) node](#1-node--1-yakut-node)
@@ -20,7 +19,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 ## TODO
 
 - [x] Finish study pycyphal application layer
-- [ ] `demo_node.py`
+- [ ] `demo_cyraft.py`
   - [ ] request_vote_rpc
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
@@ -29,10 +28,6 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [ ] append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?
 -  [ ] Refactor code into `cyraft`
-
-### Questions
-
-- request_vote is not responding?
 
 ## Setup
 
@@ -76,7 +71,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 - Run the demo
 
     ```bash
-    python3 demo/demo_node.py
+    python3 demo/demo_cyraft.py
     ```
 
     > **_NOTE:_**  Sometimes this can give an error if it's using old datatypes, try to remove ~/.pycyphal and recompile DSDL datatypes (running previous command will do this automatically)
@@ -104,13 +99,13 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     }
     ```
 
-- Vscode: Run and Debug (on `demo_node.py`)
+- Vscode: Run and Debug (on `demo_cyraft.py`)
 
     ![run-and-debug](images/run_and_debug.png)
 
 ### Request Vote
 
-While running the previous `demo_node.py`, in a new terminal window:
+While running the previous `demo_cyraft.py`, in a new terminal window:
 
 - Setup
 
@@ -133,7 +128,7 @@ While running the previous `demo_node.py`, in a new terminal window:
 
 ## Diagrams
 
-### demo_node
+### demo_cyraft
 
 ```mermaid
 ---

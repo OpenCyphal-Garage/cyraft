@@ -18,13 +18,11 @@ import pycyphal.application  # This module requires the root namespace "uavcan" 
 # say, "uavcan.node.Heartbeat", you have to "import uavcan.node".
 import uavcan.node  # noqa
 
-UPDATE_PERIOD = 0.1  # [s]
-
 _logger = logging.getLogger(__name__)
 
 
-class DemoNode:
-    REGISTER_FILE = "demo_node.db"
+class RaftNode:
+    REGISTER_FILE = "raft_node.db"
     """
     The register file stores configuration parameters of the local application/node. The registers can be modified
     at launch via environment variables and at runtime via RPC-service "uavcan.register.Access".
@@ -50,7 +48,7 @@ class DemoNode:
         # the UAVCAN network. Also, it implements certain standard application-layer functions, such as publishing
         # heartbeats and port introspection messages, responding to GetInfo, serving the register API, etc.
         # The register file stores the configuration parameters of our node (you can inspect it using SQLite Browser).
-        self._node = pycyphal.application.make_node(node_info, DemoNode.REGISTER_FILE)
+        self._node = pycyphal.application.make_node(node_info, RaftNode.REGISTER_FILE)
 
         # Published heartbeat fields can be configured as follows.
         self._node.heartbeat_publisher.mode = uavcan.node.Mode_1.OPERATIONAL  # type: ignore
@@ -141,7 +139,7 @@ class DemoNode:
         ):
             try:
                 os.unlink(
-                    DemoNode.REGISTER_FILE
+                    RaftNode.REGISTER_FILE
                 )  # Reset to defaults by removing the register file.
             except OSError:  # Do nothing if already removed.
                 pass
@@ -176,7 +174,7 @@ async def main() -> None:
     handler = logging.StreamHandler(sys.stderr)
     _logger.addHandler(handler)
     _logger.info("Starting the application...")
-    app = DemoNode()
+    app = RaftNode()
     try:
         await app.run()
     except KeyboardInterrupt:
