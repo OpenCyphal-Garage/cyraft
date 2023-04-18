@@ -24,7 +24,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [ ] request_vote_rpc
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
-    - [ ] Implement `request_vote_rpc`
+    - [x] Implement `request_vote_rpc`
     - [ ] Add orchestration so there's 3 nodes running simultanously
   - [ ] append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?

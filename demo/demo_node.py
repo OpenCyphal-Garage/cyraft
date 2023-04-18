@@ -8,6 +8,7 @@ import pathlib
 import asyncio
 import logging
 import pycyphal
+import typing
 
 # DSDL files are automatically compiled by pycyphal import hook from sources pointed by CYPHAL_PATH env variable.
 import sirius_cyber_corp  # This is our vendor-specific root namespace. Custom data types.
@@ -35,6 +36,16 @@ class DemoNode:
             software_version=uavcan.node.Version_1(major=1, minor=0),
             name="org.opencyphal.pycyphal.demo.demo_node",
         )
+
+        # Raft-specific node variables
+        # latest term server has seen (initialized to 0 on first boot, increases monotonically)
+        self.currentTerm: int = 5
+        # candidateId that received vote in current term (or null if none)
+        self.votedFor: int | None = None
+        # log entries; each entry contains command for state machine,
+        # and term when entry was received by leader
+        self.log: typing.List[typing.Tuple[str, int]] = []
+
         # The Node class is basically the central part of the library -- it is the bridge between the application and
         # the UAVCAN network. Also, it implements certain standard application-layer functions, such as publishing
         # heartbeats and port introspection messages, responding to GetInfo, serving the register API, etc.
@@ -86,24 +97,18 @@ class DemoNode:
             metadata.client_node_id,
         )
 
-        return sirius_cyber_corp.RequestVote_1.Response(
-            term=1,  # TODO: get term
-            vote_granted=True,
-        )
-
         # Reply false if term < currentTerm (§5.1)
-        if request.term < self._node.id:
+        if request.term < self.currentTerm:
             return sirius_cyber_corp.RequestVote_1.Response(
-                term=1, vote_granted=False
+                term=1, voteGranted=False
             )  # TODO: get term
 
         # If votedFor is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
-        votedFor = 2  # TODO: get votedFor from self
-        if votedFor is None or votedFor == request.candidate_id:
+        if self.votedFor is None or self.votedFor == request.candidate_id:
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=1,  # TODO: get term from self
-                vote_granted=True,
+                voteGranted=True,
             )
 
         _logger.error("Should not reach here!")
