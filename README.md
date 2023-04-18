@@ -7,6 +7,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
   - [Setup](#setup)
       - [Vscode debug setup](#vscode-debug-setup)
     - [Request Vote](#request-vote)
+    - [Orchestration](#orchestration)
   - [Diagrams](#diagrams)
     - [demo\_cyraft](#demo_cyraft)
     - [DSDL datatypes](#dsdl-datatypes)
@@ -24,7 +25,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
     - [x] Implement `request_vote_rpc`
-    - [ ] Add orchestration so there's 3 nodes running simultanously
+    - [x] Add orchestration so there's 3 nodes running simultanously
   - [ ] append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?
 -  [ ] Refactor code into `cyraft`
@@ -125,6 +126,69 @@ While running the previous `demo_cyraft.py`, in a new terminal window:
     ```
 
     ![request-vote-rpc](images/request_vote_rpc.png)
+
+### Orchestration
+
+<details>
+<summary>`cyraft/demo/launch.orc.yaml`</summary>
+
+```yaml
+#!/usr/bin/env -S yakut --verbose orchestrate
+# Read the docs about the orc-file syntax: yakut orchestrate --help
+
+# Shared environment variables for all nodes/processes (can be overridden or selectively removed in local scopes).
+CYPHAL_PATH: "./public_regulated_data_types;./custom_data_types"
+# PYCYPHAL_PATH: ".pycyphal_generated"  # This one is optional; the default is "~/.pycyphal".
+
+# Shared registers for all nodes/processes (can be overridden or selectively removed in local scopes).
+# See the docs for pycyphal.application.make_node() to see which registers can be used here.
+uavcan:
+  # Use Cyphal/UDP via localhost:
+  udp.iface: 127.0.0.1
+  # If you have Ncat or some other TCP broker, you can use Cyphal/serial tunneled over TCP (in a heterogeneous
+  # redundant configuration with UDP or standalone). Ncat launch example: ncat --broker --listen --source-port 50905
+  serial.iface: "" # socket://127.0.0.1:50905
+  # It is recommended to explicitly assign unused transports to ensure that previously stored transport
+  # configurations are not accidentally reused:
+  can.iface: ""
+  # Configure diagnostic publishing, too:
+  diagnostic:
+    severity: 2
+    timestamp: true
+
+# Keys with "=" define imperatives rather than registers or environment variables.
+$=:
+- $=:
+  # Wait a bit to let the diagnostic subscriber get ready (it is launched below).
+  - sleep 2
+  - # An empty statement is a join statement -- wait for the previously launched processes to exit before continuing.
+
+  # Launch the demo app that implements the thermostat.
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 11
+      srv.request_vote.id: 101
+
+  # Launch the controlled plant simulator.
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 12
+      srv.request_vote.id: 102
+
+  # Launch the controlled plant simulator.
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 13
+      srv.request_vote.id: 103
+
+# Exit automatically if STOP_AFTER is defined (frankly, this is just a testing aid, feel free to ignore).
+- ?=: test -n "$STOP_AFTER"
+  $=: sleep $STOP_AFTER && exit 111
+```
+</details>
+
+![orchestration](images/yakut-orchestration.png)
+
 
 ## Diagrams
 

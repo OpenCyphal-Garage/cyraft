@@ -1,0 +1,51 @@
+#!/usr/bin/env -S yakut --verbose orchestrate
+# Read the docs about the orc-file syntax: yakut orchestrate --help
+
+# Shared environment variables for all nodes/processes (can be overridden or selectively removed in local scopes).
+CYPHAL_PATH: "./public_regulated_data_types;./custom_data_types"
+# PYCYPHAL_PATH: ".pycyphal_generated"  # This one is optional; the default is "~/.pycyphal".
+
+# Shared registers for all nodes/processes (can be overridden or selectively removed in local scopes).
+# See the docs for pycyphal.application.make_node() to see which registers can be used here.
+uavcan:
+  # Use Cyphal/UDP via localhost:
+  udp.iface: 127.0.0.1
+  # If you have Ncat or some other TCP broker, you can use Cyphal/serial tunneled over TCP (in a heterogeneous
+  # redundant configuration with UDP or standalone). Ncat launch example: ncat --broker --listen --source-port 50905
+  serial.iface: "" # socket://127.0.0.1:50905
+  # It is recommended to explicitly assign unused transports to ensure that previously stored transport
+  # configurations are not accidentally reused:
+  can.iface: ""
+  # Configure diagnostic publishing, too:
+  diagnostic:
+    severity: 2
+    timestamp: true
+
+# Keys with "=" define imperatives rather than registers or environment variables.
+$=:
+- $=:
+  # Wait a bit to let the diagnostic subscriber get ready (it is launched below).
+  - sleep 2
+  - # An empty statement is a join statement -- wait for the previously launched processes to exit before continuing.
+
+  # cyraft node 1
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 11
+      srv.request_vote.id: 101
+
+  # cyraft node 2
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 12
+      srv.request_vote.id: 102
+
+  # cyraft node 3
+  - $=: python3 demo_cyraft.py
+    uavcan:
+      node.id: 13
+      srv.request_vote.id: 103
+
+# Exit automatically if STOP_AFTER is defined (frankly, this is just a testing aid, feel free to ignore).
+- ?=: test -n "$STOP_AFTER"
+  $=: sleep $STOP_AFTER && exit 111
