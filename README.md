@@ -21,7 +21,6 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 - [x] Finish study pycyphal application layer
 - [ ] `demo_cyraft.py`
-  - [ ] request_vote_rpc
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
     - [x] Add orchestration so there's 3 nodes running simultanously
@@ -41,7 +40,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
       - once a candidate wins an election, it becomes a leader
       - it then sends heartbeat messages to all of the other servers to establish authority and prevent new elections
       - raft uses randomized election timeouts to ensure that split vote are rare and are resolved quickly
-  - [ ] append_entries_rpc
+    - [ ] Implement *Log Replication*
   - [ ] `.env-variables` and `my_env.sh` should be combined?
 -  [ ] Refactor code into `cyraft`
 
