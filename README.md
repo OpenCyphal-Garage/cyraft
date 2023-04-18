@@ -4,10 +4,15 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ## TODO
 
-- [x] Finish study pycyphal communication layer
+- [x] Finish study pycyphal application layer
 - [ ] `demo_node.py`
-- [ ] class diagrams cyraft
-- [ ] implement cyraft
+  - [ ] request_vote_rpc
+    - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
+    - [ ] Implement `request_vote_rpc`
+    - [ ] Add orchestration so there's 3 nodes running simultanously
+    - [ ] Refactor code
+  - [ ] append_entries_rpc
+
 
 ## Setup
 
@@ -53,6 +58,35 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     ```bash
     python3 demo/demo_node.py
     ```
+
+> **_NOTE:_**  Sometimes this can give an error if it's using old datatypes, try to remove ~/.pycyphal and recompile DSDL datatypes (running previous command will do this automatically)
+
+    ```bash
+    rm -rf ~/.pycyphal
+    ```
+
+### Request Vote RPC
+
+While running the previous `demo_node.py`, in a new terminal window:
+
+- Setup
+
+    ```bash
+    cd ~/cyraft
+    source env/bin/activate
+    export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
+    source my_env.sh
+    export UAVCAN__UDP__IFACE=127.0.0.1
+    export UAVCAN__NODE__ID=111
+    ```
+
+- Send an RPC to request_vote (using `yakut`)
+
+    ```bash
+    y q 42 request_vote_rpc '[1,1,1,1]'
+    ```
+
+    ![request-vote-rpc](images/request_vote_rpc.png)
 
 ## Diagrams
 

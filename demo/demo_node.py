@@ -17,6 +17,8 @@ import pycyphal.application  # This module requires the root namespace "uavcan" 
 # say, "uavcan.node.Heartbeat", you have to "import uavcan.node".
 import uavcan.node  # noqa
 
+UPDATE_PERIOD = 0.1  # [s]
+
 
 class DemoNode:
     REGISTER_FILE = "demo_node.db"
@@ -41,52 +43,27 @@ class DemoNode:
         self._node.heartbeat_publisher.mode = uavcan.node.Mode_1.OPERATIONAL  # type: ignore
         self._node.heartbeat_publisher.vendor_specific_status_code = os.getpid() % 100
 
-        # Now we can create ports to interact with the network.
-        # They can also be created or destroyed later at any point after initialization.
-        # A port is created by specifying its data type and its name (similar to topic names in ROS or DDS).
-        # The subject-ID is obtained from the standard register named "uavcan.sub.temperature_setpoint.id".
-        # It can also be modified via environment variable "UAVCAN__SUB__TEMPERATURE_SETPOINT__ID".
-        # self._sub_t_sp = self._node.make_subscriber(
-        #     uavcan.si.unit.temperature.Scalar_1, "temperature_setpoint"
-        # )
-
-        # As you may probably guess by looking at the port names, we are building a basic thermostat here.
-        # We subscribe to the temperature setpoint, temperature measurement (process variable), and publish voltage.
-        # The corresponding registers are "uavcan.sub.temperature_measurement.id" and "uavcan.pub.heater_voltage.id".
-        # self._sub_t_pv = self._node.make_subscriber(
-        #     uavcan.si.sample.temperature.Scalar_1, "temperature_measurement"
-        # )
-        # self._pub_v_cmd = self._node.make_publisher(
-        #     uavcan.si.unit.voltage.Scalar_1, "heater_voltage"
-        # )
-
         # Create an RPC-server. (RequestVote)
         try:
+            print("Request vote service is enabled", file=sys.stderr)
             srv_request_vote = self._node.get_server(
                 sirius_cyber_corp.RequestVote_1, "request_vote"
             )
             srv_request_vote.serve_in_background(self._serve_request_vote)
+            logging.info("Request vote service is enabled")
         except pycyphal.application.register.MissingRegisterError:
-            logging.info("The request vote service is disabled by configuration")
+            logging.info(
+                "The request vote service is disabled by configuration (UAVCAN__SRV__REQUEST_VOTE__ID missing)"
+            )
 
         # Create an RPC-server. (AppendEntries)
-        try:
-            srv_append_entries = self._node.get_server(
-                sirius_cyber_corp.AppendEntries_1, "append_entries"
-            )
-            srv_append_entries.serve_in_background(self._serve_append_entries)
-        except pycyphal.application.register.MissingRegisterError:
-            logging.info("The append entries service is disabled by configuration")
-
-        # Create an RPC-server. The service-ID is read from standard register "uavcan.srv.least_squares.id".
-        # This service is optional: if the service-ID is not specified, we simply don't provide it.
         # try:
-        #     srv_least_sq = self._node.get_server(
-        #         sirius_cyber_corp.PerformLinearLeastSquaresFit_1, "least_squares"
+        #     srv_append_entries = self._node.get_server(
+        #         sirius_cyber_corp.AppendEntries_1, "append_entries"
         #     )
-        #     srv_least_sq.serve_in_background(self._serve_linear_least_squares)
-        # except pycyphal.application.register.MissingRegisterError:
-        #     logging.info("The least squares service is disabled by configuration")
+        #     srv_append_entries.serve_in_background(self._serve_append_entries)
+        # except pycyphal.application.register.MissingRegisterError: # UAVCAN__SRV__APPEND_ENTRIES__ID
+        #     logging.info("The append entries service is disabled by configuration (UAVCAN__SRV__APPEND_ENTRIES__ID missing)")
 
         # Create another RPC-server using a standard service type for which a fixed service-ID is defined.
         # We don't specify the port name so the service-ID defaults to the fixed port-ID.
@@ -106,6 +83,7 @@ class DemoNode:
         logging.info(
             "Request vote request %s from node %d", request, metadata.client_node_id
         )
+        print("Request vote request received!", file=sys.stderr)
         return sirius_cyber_corp.RequestVote_1.Response(
             term=1,
             vote_granted=True,
@@ -124,28 +102,6 @@ class DemoNode:
             term=1,
             success=True,
         )
-
-    # @staticmethod
-    # async def _serve_linear_least_squares(
-    #     request: sirius_cyber_corp.PerformLinearLeastSquaresFit_1.Request,
-    #     metadata: pycyphal.presentation.ServiceRequestMetadata,
-    # ) -> sirius_cyber_corp.PerformLinearLeastSquaresFit_1.Response:
-    #     logging.info(
-    #         "Least squares request %s from node %d", request, metadata.client_node_id
-    #     )
-    #     sum_x = sum(map(lambda p: p.x, request.points))  # type: ignore
-    #     sum_y = sum(map(lambda p: p.y, request.points))  # type: ignore
-    #     a = sum_x * sum_y - len(request.points) * sum(map(lambda p: p.x * p.y, request.points))  # type: ignore
-    #     b = sum_x * sum_x - len(request.points) * sum(map(lambda p: p.x**2, request.points))  # type: ignore
-    #     try:
-    #         slope = a / b
-    #         y_intercept = (sum_y - slope * sum_x) / len(request.points)
-    #     except ZeroDivisionError:
-    #         slope = float("nan")
-    #         y_intercept = float("nan")
-    #     return sirius_cyber_corp.PerformLinearLeastSquaresFit_1.Response(
-    #         slope=slope, y_intercept=y_intercept
-    #     )
 
     @staticmethod
     async def _serve_execute_command(
@@ -177,40 +133,15 @@ class DemoNode:
         The main method that runs the business logic. It is also possible to use the library in an IoC-style
         by using receive_in_background() for all subscriptions if desired.
         """
-        # temperature_setpoint = 0.0
-        # temperature_error = 0.0
-
-        # def on_setpoint(
-        #     msg: uavcan.si.unit.temperature.Scalar_1, _: pycyphal.transport.TransferFrom
-        # ) -> None:
-        #     nonlocal temperature_setpoint
-        #     temperature_setpoint = msg.kelvin
-
-        # self._sub_t_sp.receive_in_background(on_setpoint)  # IoC-style handler.
-
-        # Expose internal states to external observers for diagnostic purposes. Here, we define read-only registers.
-        # Since they are computed at every invocation, they are never stored in the register file.
-        # self._node.registry["thermostat.error"] = lambda: temperature_error
-        # self._node.registry["thermostat.setpoint"] = lambda: temperature_setpoint
-
-        # Read application settings from the registry. The defaults will be used only if a new register file is created.
-        # gain_p, gain_i, gain_d = self._node.registry.setdefault(
-        #     "thermostat.pid.gains", [0.12, 0.18, 0.01]
-        # ).floats
-
         logging.info("Application Node started!")
         print("Running. Press Ctrl+C to stop.", file=sys.stderr)
 
-        # This loop will exit automatically when the node is close()d. It is also possible to use receive() instead.
-        # async for m, _metadata in self._sub_t_pv:
-        #     assert isinstance(m, uavcan.si.sample.temperature.Scalar_1)
-        #     temperature_error = temperature_setpoint - m.kelvin
-        #     voltage_output = (
-        #         temperature_error * gain_p
-        #     )  # Suppose this is a basic P-controller.
-        #     await self._pub_v_cmd.publish(
-        #         uavcan.si.unit.voltage.Scalar_1(voltage_output)
-        #     )
+        # Run the main loop forever.
+        next_update_at = asyncio.get_running_loop().time()
+        while True:
+            # Sleep until next iteration
+            next_update_at += UPDATE_PERIOD
+            await asyncio.sleep(next_update_at - asyncio.get_running_loop().time())
 
     def close(self) -> None:
         """

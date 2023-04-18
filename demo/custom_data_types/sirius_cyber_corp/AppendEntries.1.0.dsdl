@@ -1,18 +1,26 @@
+# This service accepts a list of 2D point coordinates and returns the best-fit linear function coefficients.
+# If no solution exists, the returned coefficients are NaN.
 # This service is used for the AppendEntries RPC
+#uint64 term
+#uint64 leaderID
+#uint64 prevLogIndex
+#uint64 prevLogTerm
+##[]LogEntry entries
+#string entries
+#uint64 leaderCommit
+#@sealed
+#---
+#uint64 term
+#bool voteGranted
+#@sealed
 
-uint64 term
-uint64 leaderID
-uint64 prevLogIndex
-uint64 prevLogTerm
-#[]LogEntry entries
-string entries
-uint64 leaderCommit
+PointXY.1.0[<64] points
 
-@sealed
+@extent 1024 * 8
 
 ---
 
-uint64 term
-bool voteGranted
+float64 slope
+float64 y_intercept
 
-@sealed
+@extent 64 * 8
