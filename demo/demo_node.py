@@ -158,12 +158,8 @@ class DemoNode:
         _logger.info("Application Node started!")
         _logger.info("Running. Press Ctrl+C to stop.")
 
-        # Run the main loop forever.
-        next_update_at = asyncio.get_running_loop().time()
         while True:
-            # Sleep until next iteration
-            next_update_at += UPDATE_PERIOD
-            await asyncio.sleep(next_update_at - asyncio.get_running_loop().time())
+            await asyncio.sleep(0.1)
 
     def close(self) -> None:
         """

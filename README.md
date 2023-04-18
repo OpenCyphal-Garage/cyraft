@@ -12,8 +12,8 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [demo\_node](#demo_node)
     - [DSDL datatypes](#dsdl-datatypes)
     - [Test setups](#test-setups)
-      - [Setup 1: 1 node + 1 (yakut) node](#setup-1-1-node--1-yakut-node)
-      - [Setup 2: 3 nodes (using orchestration tool)](#setup-2-3-nodes-using-orchestration-tool)
+      - [1 node + 1 (yakut) node](#1-node--1-yakut-node)
+      - [3 nodes (using orchestration tool)](#3-nodes-using-orchestration-tool)
   - [Sources](#sources)
 
 
@@ -23,7 +23,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 - [ ] `demo_node.py`
   - [ ] request_vote_rpc
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
-    - [ ] Vscode debug setup
+    - [x] Vscode debug setup
     - [ ] Implement `request_vote_rpc`
     - [ ] Add orchestration so there's 3 nodes running simultanously
   - [ ] append_entries_rpc
@@ -32,13 +32,13 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 
 ### Questions
 
-- [ ] request_vote is not responding?
-  - [ ] in demo_node example the service is not being called in run(), however it does work when being sent a Request
-  - [ ] I suspect maybe I need to use the library in "IoC-style by using receive_in_background()", however not sure how this looks in code, please bear with me and use simple words.
-- [ ] how to retrieve the node id
-  - [ ] can't be static method?
-  - [ ] needs self
-  - [ ] but if i do that it doesn't work
+- request_vote is not responding?
+  - in demo_node example the service is not being called in run(), however it does work when being sent a Request
+  - I suspect maybe I need to use the library in "IoC-style by using receive_in_background()", however not sure how this looks in code, please bear with me and use simple words.
+- how to retrieve the node id
+  - can't be static method?
+  - needs self
+  - but if i do that it doesn't work
 
 ## Setup
 
@@ -91,6 +91,16 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     >   ```
 
 #### Vscode debug setup
+
+- Edit `CYPHAL_PATH` in `.env-variables` to your home directory:
+
+    ```
+    CYPHAL_PATH="/Users/maksimdrachov/cyraft/demo/custom_data_types:/Users/maksimdrachov/cyraft/demo/public_regulated_data_types"
+    UAVCAN__NODE__ID=42
+    UAVCAN__UDP__IFACE=127.0.0.1
+    UAVCAN__SRV__REQUEST_VOTE__ID=123
+    UAVCAN__DIAGNOSTIC__SEVERITY=2
+    ```
 
 - In `~/cyraft/.vscode/settings.json`:
 
@@ -202,12 +212,12 @@ classDiagram
 
 ### Test setups
 
-#### Setup 1: 1 node + 1 (yakut) node
+#### 1 node + 1 (yakut) node
 
 - [ ] Test `request_vote`
 - [ ] Test `append_entries`
 
-#### Setup 2: 3 nodes (using orchestration tool)
+#### 3 nodes (using orchestration tool)
 
 - [ ] Test ability to elect leader
 - [ ] Test ability to append entries
