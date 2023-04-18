@@ -1,14 +1,19 @@
 # Cyraft
 
-This is an exercise in implemeting the Raft algorithm, as it could be useful within pycyphal, in order to implement "named topics". The reason why we're interested in supporting "named topics": this could (eventually) be leveraged to allow Cyphal to function as a communication layer between PX4 and ROS. (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
+This is an exercise in implemeting the Raft algorithm, as it could be useful within pycyphal to have so-called "[named topics](http://wiki.ros.org/Topics)". The reason why we're interested in supporting this: it could (eventually) be leveraged to allow Cyphal to function as a communication layer between PX4 and ROS. (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
 - [Cyraft](#cyraft)
   - [TODO](#todo)
+    - [Questions](#questions)
   - [Setup](#setup)
+      - [Vscode debug setup](#vscode-debug-setup)
     - [Request Vote](#request-vote)
   - [Diagrams](#diagrams)
     - [demo\_node](#demo_node)
     - [DSDL datatypes](#dsdl-datatypes)
+    - [Test setups](#test-setups)
+      - [Setup 1: 1 node + 1 (yakut) node](#setup-1-1-node--1-yakut-node)
+      - [Setup 2: 3 nodes (using orchestration tool)](#setup-2-3-nodes-using-orchestration-tool)
   - [Sources](#sources)
 
 
@@ -18,25 +23,22 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 - [ ] `demo_node.py`
   - [ ] request_vote_rpc
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
+    - [ ] Vscode debug setup
     - [ ] Implement `request_vote_rpc`
     - [ ] Add orchestration so there's 3 nodes running simultanously
   - [ ] append_entries_rpc
+  - [ ] `.env-variables` and `my_env.sh` should be combined?
 -  [ ] Refactor code into `cyraft`
 
-Questions:
-- [ ] how the logging works (doesn't show?)
+### Questions
+
 - [ ] request_vote is not responding?
-  - [ ] in demo_node example the service is not being called in run(), however it does work when called
+  - [ ] in demo_node example the service is not being called in run(), however it does work when being sent a Request
   - [ ] I suspect maybe I need to use the library in "IoC-style by using receive_in_background()", however not sure how this looks in code, please bear with me and use simple words.
 - [ ] how to retrieve the node id
   - [ ] can't be static method?
   - [ ] needs self
   - [ ] but if i do that it doesn't work
-- [ ] Any reason why all _serve_execute_command (and all those types of functions) use async. As per ChatGPT: 
-
-    ```
-    However, if an async function does not involve any asynchronous operations or does not have any await expressions, it might not make much sense to declare it as an async function. In such cases, a regular synchronous function might be a better option.
-    ```
 
 ## Setup
 
@@ -87,6 +89,20 @@ Questions:
     >   ```bash
     >   rm -rf ~/.pycyphal
     >   ```
+
+#### Vscode debug setup
+
+- In `~/cyraft/.vscode/settings.json`:
+
+    ```
+    {
+    "python.envFile": "${workspaceFolder}/.env-variables",
+    }
+    ```
+
+- Vscode: Run and Debug (on `demo_node.py`)
+
+    ![run-and-debug](images/run_and_debug.png)
 
 ### Request Vote
 
@@ -183,6 +199,18 @@ classDiagram
 
     }
 ```
+
+### Test setups
+
+#### Setup 1: 1 node + 1 (yakut) node
+
+- [ ] Test `request_vote`
+- [ ] Test `append_entries`
+
+#### Setup 2: 3 nodes (using orchestration tool)
+
+- [ ] Test ability to elect leader
+- [ ] Test ability to append entries
 
 ## Sources
 
