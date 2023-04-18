@@ -33,8 +33,6 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
 ### Questions
 
 - request_vote is not responding?
-  - in demo_node example the service is not being called in run(), however it does work when being sent a Request
-  - I suspect maybe I need to use the library in "IoC-style by using receive_in_background()", however not sure how this looks in code, please bear with me and use simple words.
 - how to retrieve the node id
   - can't be static method?
   - needs self

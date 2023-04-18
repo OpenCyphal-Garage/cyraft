@@ -87,6 +87,11 @@ class DemoNode:
             metadata.client_node_id,
         )
 
+        return sirius_cyber_corp.RequestVote_1.Response(
+            term=1,
+            vote_granted=True,
+        )
+
         # Reply false if term < currentTerm (§5.1)
         node_id = 1  # TODO: get node id from self
         if request.term < node_id:
@@ -105,11 +110,6 @@ class DemoNode:
             )
 
         _logger.error("Should not reach here!")
-
-        return sirius_cyber_corp.RequestVote_1.Response(
-            term=1,
-            vote_granted=True,
-        )
 
     @staticmethod
     async def _serve_append_entries(
@@ -159,7 +159,7 @@ class DemoNode:
         _logger.info("Running. Press Ctrl+C to stop.")
 
         while True:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)
 
     def close(self) -> None:
         """
