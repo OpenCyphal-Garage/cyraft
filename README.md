@@ -24,7 +24,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
     - [x] Add orchestration so there's 3 nodes running simultanously
-    - [ ] Implement *Leader election*
+    - [ ] *Leader election*
       - at any given time each server is in one of three states: leader, follower or candidate
       - raft divides time into terms of arbitrary length, terms are numbered in concecutive integers
       - current terms exchanged whenever servers communicate; if one server's current term is smaller than the other's, then it updates its current time term
@@ -40,7 +40,17 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
       - once a candidate wins an election, it becomes a leader
       - it then sends heartbeat messages to all of the other servers to establish authority and prevent new elections
       - raft uses randomized election timeouts to ensure that split vote are rare and are resolved quickly
-    - [ ] Implement *Log Replication*
+    - [ ] *Log Replication*
+    - [ ] _serve_request_vote
+      - [ ] implement log comparison
+    - [ ] _start_election
+    - [ ] _serve_append_entries
+    - [ ] unit tests
+      - [ ] _unittest_raft_node_init
+      - [ ] _unittest_raft_node_request_vote_rpc
+        - [ ] how to check response?
+        - [ ] add test for log comparison
+      - [ ] _unittest_raft_node_append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?
 -  [ ] Refactor code into `cyraft`
 

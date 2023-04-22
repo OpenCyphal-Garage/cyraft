@@ -109,13 +109,13 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-
+        # QUESTION: metadata is not used?
         # Reply false if term < self.current_term (§5.1)
-        if request.term < self.current_term:
+        if request.term < self.current_term or self.voted_for is not None:
             _logger.info("Request vote request denied")
             return sirius_cyber_corp.RequestVote_1.Response(
-                term=1, voteGranted=False
-            )  # TODO: get term
+                term=self.current_term, voteGranted=False
+            )
 
         # If voted_for is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4) # TODO: implement log comparison
@@ -125,7 +125,7 @@ class RaftNode:
             _logger.info("request.candidateID: %d", request.candidateID)
             self.voted_for = request.candidateID
             return sirius_cyber_corp.RequestVote_1.Response(
-                term=1,  # TODO: get term from self
+                term=self.current_term,
                 voteGranted=True,
             )
 
@@ -259,21 +259,38 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     )
 
     # test 1: vote not granted if already voted for another candidate
-    raft_node.voted_for = 43
-    raft_node.current_term = 5
-    assert request.term < raft_node.current_term
+    raft_node.voted_for = 43  # node voted for another candidate
+    raft_node.current_term = 1  # node's term is equal to candidate's term
+    assert request.term == raft_node.current_term
     await raft_node._serve_request_vote(request, metadata)
     assert raft_node.voted_for == 43
+    # assert response.voteGranted == False # TODO: how to retrieve response?
+
+    # test 2: vote not granted if node's term is greater than candidate's term
+    raft_node.voted_for = None  # node has not voted for any candidate
+    raft_node.current_term = 2  # node's term is greater than candidate's term
+    assert request.term < raft_node.current_term
+    await raft_node._serve_request_vote(request, metadata)
+    assert raft_node.voted_for == None
     # assert response.voteGranted == False # TODO: how to test this?
 
-    # test 2: vote granted if not voted for another candidate
-    #         and the candidate's term is greater than or equal to the node's term # TODO: test this
+    # test 3: vote granted if not voted for another candidate
+    #         and the candidate's term is greater than or equal to the node's term
     raft_node.voted_for = None
     raft_node.current_term = 0
     assert not request.term < raft_node.current_term
     await raft_node._serve_request_vote(request, metadata)
     assert raft_node.voted_for == 42
-    # assert response.voteGranted == True # TODO: how to test this?
+    # assert response.voteGranted == True # TODO: how to retrieve response?
+
+    # test 4: vote granted if not voted for another candidate
+    #         and the candidate's term is equal to the node's term
+    raft_node.voted_for = None  # node has not voted for any candidate
+    raft_node.current_term = 1  # node's term is equal to candidate's term
+    assert not request.term < raft_node.current_term
+    await raft_node._serve_request_vote(request, metadata)
+    assert raft_node.voted_for == 42
+    # assert response.voteGranted == True # TODO: how to retrieve response?
 
 
 async def _unittest_raft_fsm() -> None:
