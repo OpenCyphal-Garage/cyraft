@@ -50,8 +50,10 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
       - [ ] _unittest_raft_node_request_vote_rpc
         - [ ] how to check response?
         - [ ] add test for log comparison
+      - [ ] _unittest_raft_fsm
       - [ ] _unittest_raft_node_append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?
+  - [ ] Implement Github CI
 -  [ ] Refactor code into `cyraft`
 
 ## Setup
