@@ -27,7 +27,7 @@ This is an exercise in implemeting the Raft algorithm, as it could be useful wit
     - [ ] Implement *Leader election*
       - at any given time each server is in one of three states: leader, follower or candidate
       - raft divides time into terms of arbitrary length, terms are numbered in concecutive integers
-      - current terms exchanged whenever servers communicate; if one server's current term is smaller than the other;s, then it updates its current time term
+      - current terms exchanged whenever servers communicate; if one server's current term is smaller than the other's, then it updates its current time term
       - if a candidate or leader discovers that its term is out of date, it immediately reverts to follower state
       - if a server receives a request with a stale term number, it rejects the request
       - RequestVote RPCs are initiated by candidates during elections
@@ -202,6 +202,21 @@ $=:
 </details>
 
 ![orchestration](images/yakut-orchestration.png)
+
+```bash
+cd ~/cyraft
+source env/bin/activate
+cd demo
+yakut orc launch.orc.yaml
+```
+
+```bash
+cd ~/cyraft
+source env/bin/activate
+export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
+export UAVCAN__UDP__IFACE=127.0.0.1
+export UAVCAN__NODE__ID=123
+```
 
 
 ## Diagrams
