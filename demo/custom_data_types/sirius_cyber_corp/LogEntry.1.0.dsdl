@@ -1,0 +1,5 @@
+# This type is used to define a LogEntry for AppendEntries RPC
+uint64 term
+uint8[<=256] name
+uint64 value
+@sealed

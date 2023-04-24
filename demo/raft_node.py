@@ -10,6 +10,7 @@ import logging
 import pycyphal
 import typing
 import time
+import numpy as np
 
 # DSDL files are automatically compiled by pycyphal import hook from sources pointed by CYPHAL_PATH env variable.
 import sirius_cyber_corp  # This is our vendor-specific root namespace. Custom data types.
@@ -22,7 +23,8 @@ from raft_state import RaftState
 
 _logger = logging.getLogger(__name__)
 
-next_term_timeout = 0.5  # seconds
+TERM_TIMEOUT = 0.5  # seconds
+ELECTION_TIMEOUT = 5  # seconds
 
 
 class RaftNode:
@@ -39,7 +41,9 @@ class RaftNode:
             name="org.opencyphal.pycyphal.demo.demo_node",
         )
 
-        # Raft-specific node variables
+        ########################################
+        ##### Raft-specific node variables #####
+        ########################################
         # candidateId that received vote in current term (or null if none)
         self.voted_for: int | None = None
         # log entries; each entry contains command for state machine,
@@ -48,63 +52,53 @@ class RaftNode:
         # state
         self.prev_state: RaftState = RaftState.FOLLOWER  # for testing purposes
         self.state: RaftState = RaftState.FOLLOWER
-        self.last_print_time: float = 0.0
-
         self.current_term: int = 0
-        self.current_term_timestamp: float = 0.0
-
+        self.current_term_timestamp: float = time.time()
         self.last_message_timestamp: float = time.time()
         # choose election timeout randomly between 150 and 300 ms
         self.election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0
-        self.next_election_timeout: float = (
-            self.last_message_timestamp + self.election_timeout
-        )
-
         self.cluster: typing.List[RaftNode] = []
 
-        # The Node class is basically the central part of the library -- it is the bridge between the application and
-        # the UAVCAN network. Also, it implements certain standard application-layer functions, such as publishing
-        # heartbeats and port introspection messages, responding to GetInfo, serving the register API, etc.
-        # The register file stores the configuration parameters of our node (you can inspect it using SQLite Browser).
+        ########################################
+        #####       UAVCAN-specific        #####
+        ########################################
         self._node = pycyphal.application.make_node(node_info, RaftNode.REGISTER_FILE)
 
-        # Published heartbeat fields can be configured as follows.
         self._node.heartbeat_publisher.mode = uavcan.node.Mode_1.OPERATIONAL  # type: ignore
         self._node.heartbeat_publisher.vendor_specific_status_code = os.getpid() % 100
 
         # Create an RPC-server. (RequestVote)
         try:
-            _logger.info("Request vote service is enabled")
             srv_request_vote = self._node.get_server(
                 sirius_cyber_corp.RequestVote_1, "request_vote"
             )
             srv_request_vote.serve_in_background(self._serve_request_vote)
+            _logger.info("Request vote service is enabled")
         except pycyphal.application.register.MissingRegisterError:
             _logger.info(
                 "The request vote service is disabled by configuration (UAVCAN__SRV__REQUEST_VOTE__ID missing)"
             )
 
         # Create an RPC-server. (AppendEntries)
-        # try:
-        #     srv_append_entries = self._node.get_server(
-        #         sirius_cyber_corp.AppendEntries_1, "append_entries"
-        #     )
-        #     srv_append_entries.serve_in_background(self._serve_append_entries)
-        # except pycyphal.application.register.MissingRegisterError: # UAVCAN__SRV__APPEND_ENTRIES__ID
-        #     logging.info("The append entries service is disabled by configuration (UAVCAN__SRV__APPEND_ENTRIES__ID missing)")
+        try:
+            srv_append_entries = self._node.get_server(
+                sirius_cyber_corp.AppendEntries_1, "append_entries"
+            )
+            srv_append_entries.serve_in_background(self._serve_append_entries)
+            _logger.info("Append entries service is enabled")
+        except pycyphal.application.register.MissingRegisterError:
+            logging.info(
+                "The append entries service is disabled by configuration (UAVCAN__SRV__APPEND_ENTRIES__ID missing)"
+            )
 
-        # Create another RPC-server using a standard service type for which a fixed service-ID is defined.
-        # We don't specify the port name so the service-ID defaults to the fixed port-ID.
-        # We could, of course, use it with a different service-ID as well, if needed.
         self._node.get_server(uavcan.node.ExecuteCommand_1).serve_in_background(
             self._serve_execute_command
         )
 
         self._node.start()  # Don't forget to start the node!
 
-    def set_timeout(self, timeout: float) -> None:
+    def set_election_timeout(self, timeout: float) -> None:
         self.election_timeout = timeout
-        self.next_election_timeout = time.time() + self.election_timeout
 
     def add_remote_node(self, node_id) -> None:
         if node_id not in self.cluster:
@@ -124,6 +118,9 @@ class RaftNode:
         # Reply false if term < self.current_term (§5.1)
         if request.term < self.current_term or self.voted_for is not None:
             _logger.info("Request vote request denied")
+            _logger.info("request.term: %d", request.term)
+            _logger.info("self.current_term: %d", self.current_term)
+            _logger.info("self.voted_for: %s", self.voted_for)
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=self.current_term, voteGranted=False
             )
@@ -152,8 +149,7 @@ class RaftNode:
         # Vote for self
         self.voted_for = self._node.id
         # Reset election timeout
-        self.election_timeout = 0.15 + 0.15 * os.urandom(1)[0] / 255.0
-        self.next_election_timeout = self.last_message_timestamp + self.election_timeout
+        self.last_message_timestamp = time.time()
         # Send RequestVote RPCs to all other servers
         request = sirius_cyber_corp.RequestVote_1.Request(
             term=self.current_term,
@@ -170,13 +166,13 @@ class RaftNode:
         # Send request vote to all nodes in cluster, count votes
         number_of_nodes = len(self.cluster)
         number_of_votes = 1  # Vote for self
-        for node_id in self.cluster:
-            if node_id != self._node.id:
-                _logger.info("Sending request vote to node %d", node_id)
-                response = await self._node.get_client(
-                    sirius_cyber_corp.RequestVote_1, "request_vote", node_id
-                ).call(request, metadata)
-                _logger.info("Response from node %d: %s", node_id, response)
+        for remote_node in self.cluster:
+            if remote_node._node.id != self._node.id:
+                _logger.info("Sending request vote to node %d", remote_node._node.id)
+                response = await remote_node._serve_request_vote(request, metadata)
+                _logger.info(
+                    "Response from node %d: %s", remote_node._node.id, response
+                )
                 if response.voteGranted:
                     number_of_votes += 1
         # If votes received from majority of servers: become leader
@@ -189,18 +185,56 @@ class RaftNode:
             # If AppendEntries RPC received from new leader: convert to follower
             # TODO: implement this
 
-    @staticmethod
     async def _serve_append_entries(
+        self,
         request: sirius_cyber_corp.AppendEntries_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.AppendEntries_1.Response:
-        # TODO: implement this
         _logger.info(
-            "Append entries request %s from node %d", request, metadata.client_node_id
+            "\033[94m Append entries request %s from node %d \033[0m",
+            request,
+            metadata.client_node_id,
         )
+
+        # heartbeat
+        empty_array = np.array_equal(
+            request.entries, np.array([], dtype=request.entries.dtype)
+        )
+        if request.term == self.current_term and empty_array:
+            _logger.info("Heartbeat received")
+            self.last_message_timestamp = time.time()
+            return sirius_cyber_corp.AppendEntries_1.Response(
+                term=self.current_term, success=True
+            )
+
+        # Reply false if term < currentTerm (§5.1)
+        # if request.term < self.current_term:
+        #     _logger.info("Append entries request denied")
+        #     _logger.info("request.term: %d", request.term)
+        #     _logger.info("self.current_term: %d", self.current_term)
+        #     return sirius_cyber_corp.AppendEntries_1.Response(
+        #         term=self.current_term, success=False
+        #     )
+
+        # Reply false if log doesn’t contain an entry at prevLogIndex
+        # whose term matches prevLogTerm (§5.3)
+        # TODO: implement log
+
+        # If an existing entry conflicts with a new one (same index
+        # but different terms), delete the existing entry and all that
+        # follow it (§5.3)
+
+        # Append any new entries not already in the log
+
+        # If leaderCommit > commitIndex, set commitIndex =
+        # min(leaderCommit, index of last new entry)
+        _logger.error("Should not reach here!")
+        _logger.error("request.term: %d", request.term)
+        _logger.error("self.current_term: %d", self.current_term)
+        _logger.error("entries: %s", request.entries)
         return sirius_cyber_corp.AppendEntries_1.Response(
             term=1,
-            success=True,
+            success=False,
         )
 
     @staticmethod
@@ -238,18 +272,10 @@ class RaftNode:
 
         while True:
             await asyncio.sleep(0.01)
-            if time.time() - self.last_print_time > 2:
-                self.last_print_time = time.time()
-                # print node id and the state
-                _logger.info(
-                    "Node ID: %d -- Current state: %s", self._node.id, self.state
-                )
             # if term timeout is reached, increase term
-            if time.time() - self.current_term_timestamp > next_term_timeout:
+            if time.time() - self.current_term_timestamp > TERM_TIMEOUT:
                 self.current_term_timestamp = time.time()
                 self.current_term += 1
-                # self.voted_for = None
-                # self.state = RaftState.FOLLOWER
                 _logger.info(
                     "Node ID: %d -- Term timeout reached, increasing term to %d",
                     self._node.id,
@@ -278,8 +304,10 @@ class RaftNode:
 async def _unittest_raft_node_init() -> None:
     os.environ["UAVCAN__NODE__ID"] = "42"
     os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     raft_node = RaftNode()
     assert raft_node._node.id == 42
+    assert False
 
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
@@ -334,9 +362,56 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     # assert response.voteGranted == True # TODO: how to retrieve response?
 
 
-async def _unittest_raft_fsm() -> None:
+async def _unittest_raft_node_heartbeat() -> None:
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node = RaftNode()
+    raft_node.voted_for = 42
+    raft_node.set_election_timeout(ELECTION_TIMEOUT)
+    asyncio.create_task(raft_node.run())
+    await asyncio.sleep(
+        ELECTION_TIMEOUT * 0.90
+    )  # wait for right before election timeout
+    # calculate number of terms passed
+    terms_passed = raft_node.current_term
+    # send heartbeat
+    await raft_node._serve_append_entries(
+        sirius_cyber_corp.AppendEntries_1.Request(
+            term=terms_passed,  # leader's term
+            leaderID=42,  # so follower can redirect clients
+            prevLogIndex=0,  # index of log entry immediately preceding new ones
+            prevLogTerm=0,  # term of prevLogIndex entry
+            entries=[],  # log entries to store (empty for heartbeat)
+            leaderCommit=0,  # leader's commitIndex
+        ),
+        pycyphal.presentation.ServiceRequestMetadata(
+            client_node_id=42,  # leader's node id
+            timestamp=0,  # leader's timestamp
+            priority=0,  # leader's priority
+            transfer_id=0,  # leader's transfer id
+        ),
+    )
+    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to hearbeat
+    await asyncio.sleep(ELECTION_TIMEOUT * 0.1)
+    assert raft_node.state == RaftState.FOLLOWER
+    assert raft_node.voted_for == 42
+
+
+async def _unittest_raft_node_term_timeout() -> None:
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node = RaftNode()
+    raft_node.set_election_timeout(TERM_TIMEOUT * 5)
+    asyncio.create_task(raft_node.run())
+    await asyncio.sleep(TERM_TIMEOUT)
+    assert raft_node.current_term == 1
+    await asyncio.sleep(TERM_TIMEOUT)
+    assert raft_node.current_term == 2
+    await asyncio.sleep(TERM_TIMEOUT)
+    assert raft_node.current_term == 3
+
+
+async def _unittest_raft_leader_election() -> None:
     """
-    Test the Raft FSM
+    Test the Raft Leader Election Algorithm
 
     - at any given time each server is in one of three states: leader, follower or candidate
     - state transitions:
@@ -357,6 +432,12 @@ async def _unittest_raft_fsm() -> None:
     raft_node_2 = RaftNode()
     os.environ["UAVCAN__NODE__ID"] = "43"
     raft_node_3 = RaftNode()
+
+    # make all part of the same cluster
+    raft_node_1.cluster = [raft_node_1, raft_node_2, raft_node_3]
+    raft_node_2.cluster = [raft_node_1, raft_node_2, raft_node_3]
+    raft_node_3.cluster = [raft_node_1, raft_node_2, raft_node_3]
+
     # test 1: all nodes start as follower
     assert raft_node_1.state == RaftState.FOLLOWER
     assert raft_node_2.state == RaftState.FOLLOWER
@@ -367,14 +448,13 @@ async def _unittest_raft_fsm() -> None:
     raft_node_1_election_timeout = election_timeout
     raft_node_2_election_timeout = election_timeout + 1
     raft_node_3_election_timeout = election_timeout + 2
-    raft_node_1.set_timeout(raft_node_1_election_timeout)
-    raft_node_2.set_timeout(raft_node_2_election_timeout)
-    raft_node_3.set_timeout(raft_node_3_election_timeout)
+    raft_node_1.set_election_timeout(raft_node_1_election_timeout)
+    raft_node_2.set_election_timeout(raft_node_2_election_timeout)
+    raft_node_3.set_election_timeout(raft_node_3_election_timeout)
 
     asyncio.create_task(raft_node_1.run())
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
-
     # let run until election timeout
     await asyncio.sleep(election_timeout)
 
@@ -384,34 +464,22 @@ async def _unittest_raft_fsm() -> None:
     assert raft_node_2.state == RaftState.FOLLOWER
     assert raft_node_3.state == RaftState.FOLLOWER
 
+    assert raft_node_1.voted_for == 41
+    assert raft_node_2.voted_for == 41
+    assert raft_node_3.voted_for == 41
+
     assert False
 
-    # send a vote request to node 42 and 43
-    # raft_node_1._request_vote_rpc()
-    # raft_node_2._request_vote_rpc()
-
-    # let run until election timeout
-    await asyncio.sleep(election_timeout + 0.1)
-    # test if it is a candidate became a leader
-    assert raft_node_1.state == RaftState.LEADER
-
-    # make additional raft nodes
-    # raft_node_2 = RaftNode()
-    # raft_node_3 = RaftNode()
-
-    # assert raft_node_1.state == RaftState.LEADER
-    # assert raft_node_2.state == RaftState.FOLLOWER
-    # assert raft_node_3.state == RaftState.FOLLOWER
-
-    # test if it is a leader
-
-    # send message with higher term
-    # test if it is a follower
-
-    # let run until election timeout
-    # test if it is a candidate
-
     raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+
+    # stop tasks
+    tasks = asyncio.all_tasks()
+    for task in tasks:
+        task.cancel()
+
+    # QUESTION: all these "Task was destroyed but it is pending!" warnings?
 
 
 def _unittest_raft_node_append_entries_rpc() -> None:
