@@ -1,6 +1,8 @@
 # Cyraft
 
-This is an exercise in implemeting the Raft algorithm, as it could be useful within pycyphal to have so-called "[named topics](http://wiki.ros.org/Topics)". The reason why we're interested in supporting this: it could (eventually) be leveraged to allow Cyphal to function as a communication layer between PX4 and ROS. (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
+The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating "[named topics](http://wiki.ros.org/Topics)" into pycyphal. This feature is significant because it may enable Cyphal to serve as a communication interface between PX4 and ROS in the future.
+
+(See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
 - [Cyraft](#cyraft)
   - [TODO](#todo)

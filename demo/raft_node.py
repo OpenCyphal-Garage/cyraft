@@ -46,6 +46,7 @@ class RaftNode:
         # and term when entry was received by leader
         self.log: typing.List[typing.Tuple[str, int]] = []
         # state
+        self.prev_state: RaftState = RaftState.FOLLOWER  # for testing purposes
         self.state: RaftState = RaftState.FOLLOWER
         self.last_print_time: float = 0.0
 
@@ -162,8 +163,8 @@ class RaftNode:
         )
         metadata = pycyphal.presentation.ServiceRequestMetadata(
             client_node_id=self._node.id,
-            timestamp=pycyphal.presentation.Timestamp.now(),
-            priority=uavcan.node.Priority_1.HIGH,
+            timestamp=time.time(),
+            priority=1,
             transfer_id=0,
         )
         # Send request vote to all nodes in cluster, count votes
@@ -181,6 +182,7 @@ class RaftNode:
         # If votes received from majority of servers: become leader
         if number_of_votes > number_of_nodes / 2:
             _logger.info("Node ID: %d -- Became leader", self._node.id)
+            self.prev_state = self.state
             self.state = RaftState.LEADER
         else:
             _logger.info("Node ID: %d -- Election failed", self._node.id)
@@ -342,8 +344,8 @@ async def _unittest_raft_fsm() -> None:
             - start as a follower (test 1)
             - if election timeout, convert to candidate and start election (test 2)
         - candidate
-            - if election timeout elapses: start new election (test 3)
-            - if votes received from majority of servers: become leader
+            - if votes received from majority of servers: become leader (test 3)
+            - if election timeout elapses: start new election (test 4)
             - discovers current leader or new term: convert to follower
         - leader
             - discovers current leader with higher term: convert to follower
@@ -373,19 +375,12 @@ async def _unittest_raft_fsm() -> None:
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
 
-    # let run until next election timeout
-    await asyncio.sleep(election_timeout + 0.5)
+    # let run until election timeout
+    await asyncio.sleep(election_timeout)
 
-    # test 2: if election timeout, convert to candidate and start election
-    assert raft_node_1.state == RaftState.CANDIDATE
-    assert raft_node_2.state == RaftState.FOLLOWER
-    assert raft_node_3.state == RaftState.FOLLOWER
-
-    # let run until next election timeout
-    await asyncio.sleep(election_timeout + 0.1)
-
-    # test 3: if election timeout elapses: start new election
-    assert raft_node_1.state == RaftState.CANDIDATE
+    # test 2 and 3: if election timeout, convert to candidate and start election, elect leader
+    assert raft_node_1.prev_state == RaftState.CANDIDATE
+    assert raft_node_1.state == RaftState.LEADER
     assert raft_node_2.state == RaftState.FOLLOWER
     assert raft_node_3.state == RaftState.FOLLOWER
 
