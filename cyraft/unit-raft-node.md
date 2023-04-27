@@ -29,12 +29,12 @@
 
 - `_unittest_raft_node_request_vote_rpc`
 
-- [ ] Reply false if term < currentTerm
-- [ ] If votedFor is null or candidateId, and candidate's log is at least as up-to-date as receiver's log, grant vote
+- [x] Reply false if term < currentTerm
+- [x] If votedFor is null or candidateId, and candidate's log is at least as up-to-date as receiver's log, grant vote
 
 ### AppendEntries
 
-- `_unittest_raft_node_heartbeat`
+- `_unittest_raft_node_append_entries_rpc`
 
 - [ ] Reply false if term < currentTerm
 - [ ] Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm

@@ -4,7 +4,7 @@ uint64 term
 uint64 leaderID
 uint64 prevLogIndex
 uint64 prevLogTerm
-LogEntry.1.0 topicLog
+LogEntry.1.0 topicLogEntry
 uint64 leaderCommit
 
 @sealed

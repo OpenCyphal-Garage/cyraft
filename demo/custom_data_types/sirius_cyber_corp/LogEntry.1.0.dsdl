@@ -1,5 +1,5 @@
 # This type is used to define a LogEntry for AppendEntries RPC
 
 uint64 term
-Entry.1.0[<64] entries
+Entry.1.0 topicEntry
 @sealed
