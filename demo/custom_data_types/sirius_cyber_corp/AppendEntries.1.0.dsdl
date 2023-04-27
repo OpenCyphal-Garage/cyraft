@@ -1,11 +1,11 @@
 # This service is used for the AppendEntries RPC
 
 uint64 term
-uint64 leaderID
-uint64 prevLogIndex
-uint64 prevLogTerm
-LogEntry.1.0 topicLogEntry
-uint64 leaderCommit
+uint64 leader_id
+uint64 prev_log_index
+uint64 prev_log_term
+LogEntry.1.0 log_entry
+uint64 leader_commit
 
 @sealed
 

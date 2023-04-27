@@ -1,2 +1,0 @@
-class NotALeaderException(Exception):
-    pass
