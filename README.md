@@ -1,6 +1,6 @@
 # Cyraft
 
-The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating "[named topics](http://wiki.ros.org/Topics)" into pycyphal. This feature is significant because it may enable Cyphal to serve as a communication interface between PX4 and ROS in the future.
+The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating [named topics](http://wiki.ros.org/Topics) into pycyphal. This feature is significant because it may enable Cyphal to serve as a communication interface between PX4 and ROS in the future.
 
 (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
@@ -20,6 +20,8 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
 
 
 ## TODO
+
+24/04: Next step is finishing *Leader election*, then implementing log
 
 - [x] Finish study pycyphal application layer
 - [ ] `demo_cyraft.py`

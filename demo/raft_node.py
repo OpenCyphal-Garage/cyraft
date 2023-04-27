@@ -26,6 +26,11 @@ _logger = logging.getLogger(__name__)
 TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
+EMPTY_ENTRIES = sirius_cyber_corp.Entry_1(
+    topicName=uavcan.primitive.String_1(value=""),  # empty topic name
+    topicId=0,  # empty topic id
+)
+
 
 class RaftNode:
     REGISTER_FILE = "raft_node.db"
@@ -196,11 +201,11 @@ class RaftNode:
             metadata.client_node_id,
         )
 
-        # heartbeat
-        empty_array = np.array_equal(
-            request.entries, np.array([], dtype=request.entries.dtype)
-        )
-        if request.term == self.current_term and empty_array:
+        # heartbeat processing
+        if (
+            request.term == self.current_term
+            and request.topicLog.entries == EMPTY_ENTRIES
+        ):
             _logger.info("Heartbeat received")
             self.last_message_timestamp = time.time()
             return sirius_cyber_corp.AppendEntries_1.Response(
@@ -281,6 +286,14 @@ class RaftNode:
                     self._node.id,
                     self.current_term,
                 )
+
+            # if leader, send heartbeat to all nodes in cluster (before election timeout)
+            if (
+                self.state == RaftState.LEADER
+                and time.time() - self.last_message_timestamp
+                > self.ection_timeout * 0.9
+            ):
+                await self._send_heartbeat()
             # if election timeout is reached, convert to candidate and start election
             if time.time() - self.last_message_timestamp > self.election_timeout:
                 self.state = RaftState.CANDIDATE
@@ -374,13 +387,17 @@ async def _unittest_raft_node_heartbeat() -> None:
     # calculate number of terms passed
     terms_passed = raft_node.current_term
     # send heartbeat
+    empty_topic_log = sirius_cyber_corp.LogEntry_1(
+        term=raft_node.current_term,  # leader's term is equal to follower's term
+        entries=EMPTY_ENTRIES,  # empty log entries
+    )
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
             leaderID=42,  # so follower can redirect clients
             prevLogIndex=0,  # index of log entry immediately preceding new ones
             prevLogTerm=0,  # term of prevLogIndex entry
-            entries=[],  # log entries to store (empty for heartbeat)
+            topicLog=empty_topic_log,  # log entries to store (empty for heartbeat)
             leaderCommit=0,  # leader's commitIndex
         ),
         pycyphal.presentation.ServiceRequestMetadata(
