@@ -21,7 +21,7 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
 
 ## TODO
 
-24/04: Next step is finishing *Leader election*, then implementing log
+27/04: Next step is finishing AppendEntries RPC, then start with `tests/`
 
 - [x] Finish study pycyphal application layer
 - [ ] `demo_cyraft.py`

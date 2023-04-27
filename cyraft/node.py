@@ -49,20 +49,31 @@ class RaftNode:
         ########################################
         ##### Raft-specific node variables #####
         ########################################
-        # candidateId that received vote in current term (or null if none)
-        self.voted_for: int | None = None
-        # state
+        self.closing = False
+
         self.prev_state: RaftState = RaftState.FOLLOWER  # for testing purposes
         self.state: RaftState = RaftState.FOLLOWER
-        self.current_term: int = 0
+
         self.current_term_timestamp: float = time.time()
         self.last_message_timestamp: float = time.time()
-        # choose election timeout randomly between 150 and 300 ms
-        self.election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0
+        self.election_timeout: float = (
+            0.15 + 0.15 * os.urandom(1)[0] / 255.0
+        )  # random between 150 and 300 ms
+
         self.cluster: typing.List[RaftNode] = []
-        # log entries; each entry contains command for state machine,
-        # and term when entry was received by leader
+
+        ## Persistent state on all servers
+        self.current_term: int = 0
+        self.voted_for: int | None = None
         self.log: typing.List[sirius_cyber_corp.Entry_1] = []
+
+        ## Volatile state on all servers
+        self.commit_index: int = 0
+        self.last_applied: int = 0
+
+        ## Volatile state on leaders
+        self.next_index: typing.List[int] = []
+        self.match_index: typing.List[int] = []
 
         ########################################
         #####       UAVCAN-specific        #####
@@ -211,7 +222,7 @@ class RaftNode:
 
         # Reply false if term < currentTerm (§5.1)
         if request.term < self.current_term:
-            _logger.info("Append entries request denied")
+            _logger.info("Append entries request denied (term < currentTerm)")
             _logger.info("request.term: %d", request.term)
             _logger.info("self.current_term: %d", self.current_term)
             return sirius_cyber_corp.AppendEntries_1.Response(
@@ -220,23 +231,43 @@ class RaftNode:
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
-        # TODO: implement log
+        try:
+            if self.log[request.prev_log_index].term != request.prev_log_term:
+                _logger.info("Append entries request denied (log mismatch)")
+                return sirius_cyber_corp.AppendEntries_1.Response(
+                    term=self.current_term, success=False
+                )
+        except IndexError:
+            _logger.info("Append entries request denied (log mismatch 2)")
+            return sirius_cyber_corp.AppendEntries_1.Response(
+                term=self.current_term, success=False
+            )
 
         # If an existing entry conflicts with a new one (same index
         # but different terms), delete the existing entry and all that
         # follow it (§5.3)
+        index = request.prev_log_index + 1  # QUESTION: Is this correct?
+        try:
+            log_entry = self.log[index]
+            if log_entry.term != request.log_entry.term:
+                del self.log[index:]
+                _logger.info("Deleted entries after index %d", index)
+                _logger.info("log_entry.term: %d", log_entry.term)
+                _logger.info("request.log_entry.term: %d", request.log_entry.term)
+        except IndexError:
+            pass
 
         # Append any new entries not already in the log
+        # [in our implementation only a single entry is sent]
+        self.log[index] = request.log_entry
 
         # If leaderCommit > commitIndex, set commitIndex =
         # min(leaderCommit, index of last new entry)
-        _logger.error("Should not reach here!")
-        _logger.error("request.term: %d", request.term)
-        _logger.error("self.current_term: %d", self.current_term)
-        _logger.error("entries: %s", request.entries)
+        if request.leader_commit > self.commit_index:
+            self.commit_index = min(request.leader_commit, index)
+
         return sirius_cyber_corp.AppendEntries_1.Response(
-            term=1,
-            success=False,
+            term=self.current_term, success=True
         )
 
     @staticmethod
@@ -274,6 +305,9 @@ class RaftNode:
 
         while True:
             await asyncio.sleep(0.01)
+            # if closing, break # TODO: this is not working? (see _unittest_raft_node_election_timeout)
+            if self.closing:
+                break
             # if term timeout is reached, increase term
             if time.time() - self.current_term_timestamp > TERM_TIMEOUT:
                 self.current_term_timestamp = time.time()
@@ -305,6 +339,7 @@ class RaftNode:
         This will close all the underlying resources down to the transport interface and all publishers/servers/etc.
         All pending tasks such as serve_in_background()/receive_in_background() will notice this and exit automatically.
         """
+        self.closing = True
         self._node.close()
 
 
@@ -352,6 +387,12 @@ async def _unittest_raft_node_election_timeout() -> None:
     await asyncio.sleep(TERM_TIMEOUT * 5)
     assert raft_node.prev_state == RaftState.CANDIDATE
     assert raft_node.state == RaftState.LEADER  # TODO: fix this
+    raft_node.close()
+    # cancel all tasks # TODO: figure out how to close task properly
+    # pending_tasks = asyncio.all_tasks()
+    # for task in pending_tasks:
+    #     task.cancel()
+    # await asyncio.gather(*pending_tasks, return_exceptions=True)
 
 
 async def _unittest_raft_node_election_timeout_heartbeat() -> None:
@@ -492,9 +533,93 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node.log == []
 
     # test 2: reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
+    #   case 1: Log mismatch
+    node_prev_log_term = 1
+    raft_node.log = [
+        sirius_cyber_corp.LogEntry_1(
+            term=node_prev_log_term,
+            entry=sirius_cyber_corp.Entry_1(
+                topic=uavcan.primitive.String_1(value="raft/test"),
+                topic_id=1,
+            ),
+        ),
+    ]
+    request = sirius_cyber_corp.AppendEntries_1.Request(
+        term=1,  # leader's term
+        leader_id=42,
+        prev_log_index=0,
+        prev_log_term=0,  # leader's term
+        log_entry=log_entry,
+    )
+    assert request.prev_log_term != node_prev_log_term
+    response = await raft_node._serve_append_entries(request, metadata)
+    assert response.term == raft_node.current_term
+    assert response.success == False
+
+    #   case 2: IndexError
+    raft_node.log = []
+    request = sirius_cyber_corp.AppendEntries_1.Request(
+        term=1,
+        leader_id=42,
+        prev_log_index=0,
+        prev_log_term=0,
+        log_entry=log_entry,
+    )
+    assert request.prev_log_term != node_prev_log_term
+    response = await raft_node._serve_append_entries(request, metadata)
+    assert response.term == raft_node.current_term
+    assert response.success == False
 
     # test 3: if an existing entry conflicts with a new one (same index but different terms),
     #         delete the existing entry and all that follow it
+    log_entry_1 = sirius_cyber_corp.LogEntry_1(
+        term=1,
+        entry=sirius_cyber_corp.Entry_1(
+            topic=uavcan.primitive.String_1(value="raft/test_1"),
+            topic_id=1,
+        ),
+    )
+    log_entry_2 = sirius_cyber_corp.LogEntry_1(
+        term=2,
+        entry=sirius_cyber_corp.Entry_1(
+            topic=uavcan.primitive.String_1(value="raft/test_2"),
+            topic_id=2,
+        ),
+    )
+    log_entry_3 = sirius_cyber_corp.LogEntry_1(
+        term=3,
+        entry=sirius_cyber_corp.Entry_1(
+            topic=uavcan.primitive.String_1(value="raft/test_3"),
+            topic_id=3,
+        ),
+    )
+    raft_node.log = [
+        log_entry_1,
+        log_entry_2,
+        log_entry_3,
+    ]
+
+    log_entry = sirius_cyber_corp.LogEntry_1(
+        term=3,  # (higher than log_entry_2's term)
+        entry=sirius_cyber_corp.Entry_1(
+            topic=uavcan.primitive.String_1(value="raft/test_4"),
+            topic_id=2,
+        ),
+    )
+    request = sirius_cyber_corp.AppendEntries_1.Request(
+        term=3,
+        leader_id=42,
+        prev_log_index=0,
+        prev_log_term=1,
+        log_entry=log_entry,
+        leader_commit=4,
+    )
+
+    response = await raft_node._serve_append_entries(request, metadata)
+    assert response.term == raft_node.current_term
+    assert response.success == True
+
+    assert False
 
     # test 4: append any new entries not already in the log
 
