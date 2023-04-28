@@ -1,5 +1,5 @@
 # This type is used to define an Entry in the raft database
 
-uavcan.primitive.String.1.0 topic
-uint64 topic_id
+uavcan.primitive.String.1.0 name
+uint64 value
 @sealed

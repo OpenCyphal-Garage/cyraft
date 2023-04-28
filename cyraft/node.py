@@ -27,8 +27,8 @@ TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
 EMPTY_ENTRY = sirius_cyber_corp.Entry_1(
-    topic=uavcan.primitive.String_1(value=""),  # empty topic name
-    topic_id=0,  # empty topic id
+    name=uavcan.primitive.String_1(value=""),  # empty topic name
+    value=0,  # empty topic id
 )
 
 
@@ -65,7 +65,17 @@ class RaftNode:
         ## Persistent state on all servers
         self.current_term: int = 0
         self.voted_for: int | None = None
-        self.log: typing.List[sirius_cyber_corp.Entry_1] = []
+        self.log: typing.List[sirius_cyber_corp.LogEntry_1] = []
+        # index 0 of log contains own node info # TODO: fill out properly
+        self.log.append(
+            sirius_cyber_corp.LogEntry_1(
+                term=0,
+                entry=sirius_cyber_corp.Entry_1(
+                    name=uavcan.primitive.String_1(value=""),
+                    value=0,
+                ),
+            )
+        )
 
         ## Volatile state on all servers
         self.commit_index: int = 0
@@ -143,11 +153,11 @@ class RaftNode:
 
         # If voted_for is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4) # TODO: implement log comparison
-        elif self.voted_for is None or self.voted_for == request.candidate_id:
+        elif self.voted_for is None or self.voted_for == metadata.client_node_id:
             _logger.info("Request vote request granted")
             _logger.info("self.voted_for: %s", self.voted_for)
-            _logger.info("request.candidateID: %d", request.candidate_id)
-            self.voted_for = request.candidate_id
+            _logger.info("request.candidateID: %d", metadata.client_node_id)
+            self.voted_for = metadata.client_node_id
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=self.current_term,
                 vote_granted=True,
@@ -213,7 +223,11 @@ class RaftNode:
         )
 
         # heartbeat processing
-        if request.term == self.current_term and request.log_entry.entry == EMPTY_ENTRY:
+        if (
+            request.term == self.current_term
+            and request.log_entry.entry == EMPTY_ENTRY
+            and metadata.client_node_id == self.voted_for  # heartbeat from leader
+        ):
             _logger.info("Heartbeat received")
             self.last_message_timestamp = metadata.timestamp
             return sirius_cyber_corp.AppendEntries_1.Response(
@@ -356,6 +370,14 @@ async def _unittest_raft_node_init() -> None:
     raft_node = RaftNode()
     assert raft_node._node.id == 42
     assert raft_node.state == RaftState.FOLLOWER
+    # Persistent states
+    assert raft_node.current_term == 0
+    assert raft_node.voted_for == None
+    assert len(raft_node.log) == 1
+    assert raft_node.log[0].term == 0
+    # Volatile states
+    assert raft_node.commit_index == 0
+    assert raft_node.last_applied == 0
 
 
 async def _unittest_raft_node_term_timeout() -> None:
@@ -400,13 +422,14 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     raft_node = RaftNode()
     raft_node.voted_for = 42
     raft_node.set_election_timeout(ELECTION_TIMEOUT)
+
     asyncio.create_task(raft_node.run())
     await asyncio.sleep(
         ELECTION_TIMEOUT * 0.90
     )  # wait for right before election timeout
-    # calculate number of terms passed
-    terms_passed = raft_node.current_term
+
     # send heartbeat
+    terms_passed = raft_node.current_term
     empty_topic_log = sirius_cyber_corp.LogEntry_1(
         term=raft_node.current_term,  # leader's term is equal to follower's term
         entry=EMPTY_ENTRY,  # empty log entries
@@ -415,11 +438,10 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
-            leader_id=42,  # so follower can redirect clients
             prev_log_index=0,  # index of log entry immediately preceding new ones
             prev_log_term=0,  # term of prevLogIndex entry
-            log_entry=empty_topic_log,  # log entries to store (empty for heartbeat)
             leader_commit=0,  # leader's commitIndex
+            log_entry=empty_topic_log,  # log entries to store (empty for heartbeat)
         ),
         pycyphal.presentation.ServiceRequestMetadata(
             client_node_id=42,  # leader's node id
@@ -428,12 +450,17 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
             transfer_id=0,  # leader's transfer id
         ),
     )
-    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to hearbeat
+
+    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to hearbeat]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1)
     assert raft_node.state == RaftState.FOLLOWER
     assert raft_node.voted_for == 42
-    # assert last_message_timestamp has been updated
+    # last_message_timestamp should be updated
     assert raft_node.last_message_timestamp == message_timestamp
+
+    ## test that the node converts to candidate after the election timeout [if no heartbeat is received]
+    await asyncio.sleep(ELECTION_TIMEOUT)
+    assert raft_node.prev_state == RaftState.CANDIDATE
 
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
@@ -446,7 +473,6 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
 
     request = sirius_cyber_corp.RequestVote_1.Request(
         term=1,  # candidate's term
-        candidate_id=42,  # candidate requesting vote
         last_log_index=1,  # index of candidate's last log entry
         last_log_term=1,  # term of candidate's last log entry
     )

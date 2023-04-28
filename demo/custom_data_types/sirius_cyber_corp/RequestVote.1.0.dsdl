@@ -1,7 +1,6 @@
 # This service is used for the RequestVote RPC
 
 uint64 term
-uint64 candidate_id
 uint64 last_log_index
 uint64 last_log_term
 
