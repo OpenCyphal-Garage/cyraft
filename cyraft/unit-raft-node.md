@@ -36,8 +36,8 @@
 
 - `_unittest_raft_node_append_entries_rpc`
 
-- [ ] Reply false if term < currentTerm
-- [ ] Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
-- [ ] If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
-- [ ] Append any new entries not already in the log
+- [x] Reply false if term < currentTerm
+- [x] Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
+- [x] If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
+- [x] Append any new entries not already in the log
 - [ ] If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)

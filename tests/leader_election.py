@@ -1,3 +1,20 @@
+# - [ ] at any given time each server is in one of three states: leader, follower or candidate
+# - [ ] raft divides time into terms of arbitrary length, terms are numbered in concecutive integers
+# - [ ] current terms exchanged whenever servers communicate; if one server's current term is smaller than the other's, then it updates its current time term
+# - [ ] if a candidate or leader discovers that its term is out of date, it immediately reverts to follower state
+# - [ ] if a server receives a request with a stale term number, it rejects the request
+# - [ ] RequestVote RPCs are initiated by candidates during elections
+# - [ ] when server start up, they begin as followers
+# - [ ] server remains in follower state as long as it receives valid RPCs from a leader or candidate
+# - [ ] leaders send periodic heartbeats (AppendEntries RPC that carry no log entries) to all followers to maintain authority
+# - [ ] if a follower receives no communication over a period of time called the election timeout, then it begins an election to choose a new leader
+# - [ ] To begin an election, a follower increments its current term and transitions to candidate state
+# - [ ] it then votes for itself and issues RequestVote RPCs in parallel to each of the other servers in the cluster
+# - [ ] once a candidate wins an election, it becomes a leader
+# - [ ] it then sends heartbeat messages to all of the other servers to establish authority and prevent new elections
+# - [ ] raft uses randomized election timeouts to ensure that split vote are rare and are resolved quickly
+
+
 async def _unittest_raft_leader_election() -> None:
     """
     Test the Raft Leader Election Algorithm

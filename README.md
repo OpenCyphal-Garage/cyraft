@@ -1,6 +1,6 @@
 # Cyraft
 
-The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating [named topics](http://wiki.ros.org/Topics) into pycyphal. This feature is significant because it may enable Cyphal to serve as a communication interface between PX4 and ROS in the future.
+The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating [named topics](http://wiki.ros.org/Topics) into pycyphal. This feature is significant because it enables Cyphal to serve as a communication interface between PX4 and ROS in the future.
 
 (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
@@ -27,20 +27,18 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
 - [ ] `demo_cyraft.py`
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
     - [x] Vscode debug setup
-    - [x] Add orchestration so there's 3 nodes running simultanously
+    - [x] RaftNode unit tests
+      - [x] _unittest_raft_node_init
+      - [x] _unittest_raft_node_term_timeout
+      - [x] _unittest_raft_node_election_timeout
+        - [ ] figure out how to close task properly
+      - [x] _unittest_raft_node_election_timeout_heartbeat
+      - [x] _unittest_raft_node_request_vote_rpc
+      - [x] _unittest_raft_node_append_entries_rpc
+        - [ ] how to compare log entries?
+    - [ ] Add orchestration so there's 3 nodes running simultanously
     - [ ] *Leader election*
     - [ ] *Log Replication*
-    - [ ] _serve_request_vote
-      - [ ] implement log comparison
-    - [ ] _start_election
-    - [ ] _serve_append_entries
-    - [ ] unit tests
-      - [ ] _unittest_raft_node_init
-      - [ ] _unittest_raft_node_request_vote_rpc
-        - [ ] how to check response?
-        - [ ] add test for log comparison
-      - [ ] _unittest_raft_fsm
-      - [ ] _unittest_raft_node_append_entries_rpc
   - [ ] `.env-variables` and `my_env.sh` should be combined?
   - [ ] Implement Github CI
 -  [ ] Refactor code into `cyraft`

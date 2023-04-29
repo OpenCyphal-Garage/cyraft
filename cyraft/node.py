@@ -27,7 +27,7 @@ TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
 EMPTY_ENTRY = sirius_cyber_corp.Entry_1(
-    name=uavcan.primitive.String_1(value=""),  # empty topic name
+    name=uavcan.primitive.String_1(value="empty"),  # empty topic name
     value=0,  # empty topic id
 )
 
@@ -77,7 +77,7 @@ class RaftNode:
 
         ## Volatile state on all servers
         self.commit_index: int = 0
-        self.last_applied: int = 0
+        # self.last_applied: int = 0 # QUESTION: Is this even necessary? Do we have a "state machine"?
 
         ## Volatile state on leaders
         self.next_index: typing.List[int] = []
@@ -132,21 +132,15 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-        # QUESTION: metadata is not used?
         # Reply false if term < self.current_term (§5.1)
         if request.term < self.current_term or self.voted_for is not None:
-            _logger.info("Request vote request denied")
-            _logger.info("request.term: %d", request.term)
-            _logger.info("self.current_term: %d", self.current_term)
-            _logger.info("self.voted_for: %s", self.voted_for)
+            _logger.info("Request vote request denied (term < self.current_term or self.voted_for is not None))")
             return sirius_cyber_corp.RequestVote_1.Response(term=self.current_term, vote_granted=False)
 
         # If voted_for is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4) # TODO: implement log comparison
         elif self.voted_for is None or self.voted_for == metadata.client_node_id:
             _logger.info("Request vote request granted")
-            _logger.info("self.voted_for: %s", self.voted_for)
-            _logger.info("request.candidateID: %d", metadata.client_node_id)
             self.voted_for = metadata.client_node_id
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=self.current_term,
@@ -169,7 +163,6 @@ class RaftNode:
         # Send RequestVote RPCs to all other servers
         request = sirius_cyber_corp.RequestVote_1.Request(
             term=self.current_term,
-            candidate_id=self._node.id,
             last_log_index=0,  # TODO: implement log
             last_log_term=0,  # TODO: implement log
         )
@@ -223,8 +216,6 @@ class RaftNode:
         # Reply false if term < currentTerm (§5.1)
         if request.log_entry.term < self.current_term:
             _logger.info("Append entries request denied (term < currentTerm)")
-            _logger.info("request.term: %d", request.log_entry.term)
-            _logger.info("self.current_term: %d", self.current_term)
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
@@ -274,15 +265,13 @@ class RaftNode:
             _logger.debug("appended: %s", request.log_entry)
             _logger.debug("commit_index: %d", self.commit_index)
 
-        # QUESTION: what does this rule mean?
         # If leaderCommit > commitIndex, set commitIndex =
         # min(leaderCommit, index of last new entry)
-        # if request.leader_commit > self.commit_index:
-        #     self.commit_index = min(request.leader_commit, new_index)
+        if request.leader_commit > self.commit_index:
+            self.commit_index = min(request.leader_commit, new_index)
 
         # Update current_term
         self.current_term = request.log_entry.term
-        _logger.debug("current_term: %d", self.current_term)
 
     @staticmethod
     async def _serve_execute_command(
@@ -308,9 +297,10 @@ class RaftNode:
 
         while True:
             await asyncio.sleep(0.01)
-            # if closing, break # TODO: this is not working? (see _unittest_raft_node_election_timeout)
+            # if closing, break # QUESTION: this is not working? (see _unittest_raft_node_election_timeout)
             if self.closing:
                 break
+
             # if term timeout is reached, increase term
             if time.time() - self.current_term_timestamp > TERM_TIMEOUT:
                 self.current_term_timestamp = time.time()
@@ -327,6 +317,7 @@ class RaftNode:
                 and time.time() - self.last_message_timestamp > self.election_timeout * 0.9
             ):
                 await self._send_heartbeat()
+
             # if election timeout is reached, convert to candidate and start election
             if time.time() - self.last_message_timestamp > self.election_timeout:
                 self.state = RaftState.CANDIDATE
@@ -365,7 +356,7 @@ async def _unittest_raft_node_init() -> None:
     assert raft_node.log[0].term == 0
     # Volatile states
     assert raft_node.commit_index == 0
-    assert raft_node.last_applied == 0
+    # assert raft_node.last_applied == 0
 
 
 async def _unittest_raft_node_term_timeout() -> None:
