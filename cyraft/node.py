@@ -19,7 +19,7 @@ import pycyphal.application  # This module requires the root namespace "uavcan" 
 # Import other namespaces we're planning to use. Nested namespaces are not auto-imported, so in order to reach,
 # say, "uavcan.node.Heartbeat", you have to "import uavcan.node".
 import uavcan.node  # noqa
-from state import RaftState
+from .state import RaftState
 
 _logger = logging.getLogger(__name__)
 
@@ -316,7 +316,8 @@ class RaftNode:
                 self.state == RaftState.LEADER
                 and time.time() - self.last_message_timestamp > self.election_timeout * 0.9
             ):
-                await self._send_heartbeat()
+                pass
+                # await self._send_heartbeat()
 
             # if election timeout is reached, convert to candidate and start election
             if time.time() - self.last_message_timestamp > self.election_timeout:
@@ -379,7 +380,7 @@ async def _unittest_raft_node_election_timeout() -> None:
     """
     Test that the node converts to candidate after the election timeout
 
-    Test that the node doesn't convert to candidate if it receives a hearbeat message
+    Test that the node doesn't convert to candidate if it receives a heartbeat message
     """
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
@@ -428,7 +429,7 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
         ),
     )
 
-    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to hearbeat]
+    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to heartbeat]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1)
     assert raft_node.state == RaftState.FOLLOWER
     assert raft_node.voted_for == 42
