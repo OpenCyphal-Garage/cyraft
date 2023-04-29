@@ -205,12 +205,14 @@ class RaftNode:
 
         # heartbeat processing
         if (
-            request.term == self.current_term
+            request.term >= self.current_term
             and request.log_entry.entry == EMPTY_ENTRY
             and metadata.client_node_id == self.voted_for  # heartbeat from leader
         ):
             _logger.info("Heartbeat received")
             self.last_message_timestamp = metadata.timestamp
+            if request.term > self.current_term:
+                self.current_term = request.term  # update term if needed
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
         # Reply false if term < currentTerm (§5.1)
@@ -273,6 +275,48 @@ class RaftNode:
         # Update current_term
         self.current_term = request.log_entry.term
 
+    async def _send_heartbeat(self) -> None:
+        # 1. "Send" heartbeat to itself (i.e. process it locally)
+        # 2. Send heartbeat to all other nodes
+        #    - if response is true, update next_index and match_index
+        #    - if response is false
+        #       - if term is greater than current_term, convert to follower
+        #       - if term is equal to current_term, decrease prev_log_index, update next_index and retry
+        # TODO: Some timeout functionality in case a node doesn't respond?
+        self.next_index = [0] * len(self.cluster)  # clear old next_index
+
+        for index, remote_node in enumerate(self.cluster):
+            if remote_node._node.id == self._node.id:
+                self.last_message_timestamp = time.time()
+                self.next_index[index] = self.commit_index + 1
+            else:
+                prev_log_index = self.commit_index
+                while prev_log_index >= 0:
+                    _logger.info(
+                        "Sending heartbeat to node %d, prev_log_index: %d", remote_node._node.id, prev_log_index
+                    )
+                    request = sirius_cyber_corp.AppendEntries_1.Request(
+                        term=self.current_term,
+                        prev_log_index=prev_log_index,
+                        prev_log_term=self.log[prev_log_index].term,
+                        log_entry=EMPTY_ENTRY,
+                    )
+                    response = await remote_node._serve_append_entries(request, None)
+                    if response.success:
+                        _logger.info("Heartbeat successful")
+                        self.next_index[index] = prev_log_index + 1
+                        break
+                    else:
+                        _logger.info("Heartbeat failed")
+                        if response.term > self.current_term:
+                            _logger.info("Term mismatch, converting to follower")
+                            self.current_term = response.term
+                            self.state = RaftNode.FOLLOWER
+                            return
+                        elif response.term == self.current_term:
+                            _logger.info("Incomplete log on remote node, decreasing prev_log_index")
+                            prev_log_index -= 1
+
     @staticmethod
     async def _serve_execute_command(
         request: uavcan.node.ExecuteCommand_1.Request,
@@ -310,14 +354,16 @@ class RaftNode:
                     self._node.id,
                     self.current_term,
                 )
+                # if leader, send heartbeat to all nodes in cluster (to update term)
+                if self.state == RaftState.LEADER:
+                    await self._send_heartbeat()
 
             # if leader, send heartbeat to all nodes in cluster (before election timeout)
             if (
                 self.state == RaftState.LEADER
                 and time.time() - self.last_message_timestamp > self.election_timeout * 0.9
             ):
-                pass
-                # await self._send_heartbeat()
+                await self._send_heartbeat()
 
             # if election timeout is reached, convert to candidate and start election
             if time.time() - self.last_message_timestamp > self.election_timeout:
