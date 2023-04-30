@@ -57,6 +57,7 @@ class RaftNode:
         self.current_term_timestamp: float = time.time()
         self.last_message_timestamp: float = time.time()
         self.election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
+        self.term_timeout = TERM_TIMEOUT
 
         self.cluster: typing.List[RaftNode] = []
 
@@ -118,6 +119,9 @@ class RaftNode:
     def set_election_timeout(self, timeout: float) -> None:
         self.election_timeout = timeout
 
+    def set_term_timeout(self, timeout: float) -> None:
+        self.term_timeout = timeout
+
     def add_remote_node(self, node_id) -> None:
         if node_id not in self.cluster:
             self.cluster.append(node_id)
@@ -142,6 +146,7 @@ class RaftNode:
         elif self.voted_for is None or self.voted_for == metadata.client_node_id:
             _logger.info("Request vote request granted")
             self.voted_for = metadata.client_node_id
+            self.current_term = request.term
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=self.current_term,
                 vote_granted=True,
@@ -295,13 +300,23 @@ class RaftNode:
                     _logger.info(
                         "Sending heartbeat to node %d, prev_log_index: %d", remote_node._node.id, prev_log_index
                     )
+                    empty_topic_log = sirius_cyber_corp.LogEntry_1(
+                        term=self.current_term,
+                        entry=EMPTY_ENTRY,
+                    )
                     request = sirius_cyber_corp.AppendEntries_1.Request(
                         term=self.current_term,
                         prev_log_index=prev_log_index,
                         prev_log_term=self.log[prev_log_index].term,
-                        log_entry=EMPTY_ENTRY,
+                        log_entry=empty_topic_log,
                     )
-                    response = await remote_node._serve_append_entries(request, None)
+                    metadata = pycyphal.presentation.ServiceRequestMetadata(
+                        client_node_id=42,  # leader's node id
+                        timestamp=time.time(),
+                        priority=0,
+                        transfer_id=0,
+                    )
+                    response = await remote_node._serve_append_entries(request, metadata)
                     if response.success:
                         _logger.info("Heartbeat successful")
                         self.next_index[index] = prev_log_index + 1
@@ -345,8 +360,8 @@ class RaftNode:
             if self.closing:
                 break
 
-            # if term timeout is reached, increase term
-            if time.time() - self.current_term_timestamp > TERM_TIMEOUT:
+            # if LEADER and term timeout is reached, increase term
+            if time.time() - self.current_term_timestamp > self.term_timeout and self.state == RaftState.LEADER:
                 self.current_term_timestamp = time.time()
                 self.current_term += 1
                 _logger.info(

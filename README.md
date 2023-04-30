@@ -36,6 +36,8 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
       - [x] _unittest_raft_node_request_vote_rpc
       - [x] _unittest_raft_node_append_entries_rpc
         - [ ] how to compare log entries?
+      - [ ] _unittest_raft_node_send_heartbeat?
+        - [ ] things is it requires a cluster
     - [ ] Add orchestration so there's 3 nodes running simultanously
     - [ ] *Leader election*
     - [ ] *Log Replication*

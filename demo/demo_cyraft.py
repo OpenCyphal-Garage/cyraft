@@ -22,6 +22,7 @@ async def main() -> None:
     _logger.addHandler(handler)
     logging.info("Starting the application...")
     app = RaftNode()
+    app.cluster = [app]
     try:
         await app.run()
     except KeyboardInterrupt:
