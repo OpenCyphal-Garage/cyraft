@@ -117,12 +117,12 @@ async def _unittest_raft_leader_election() -> None:
     raft_node_1_election_timeout = election_timeout
     raft_node_2_election_timeout = election_timeout + 1
     raft_node_3_election_timeout = election_timeout + 2
-    raft_node_1.set_election_timeout(raft_node_1_election_timeout)
-    raft_node_2.set_election_timeout(raft_node_2_election_timeout)
-    raft_node_3.set_election_timeout(raft_node_3_election_timeout)
-    raft_node_1.set_term_timeout(term_timeout)
-    raft_node_2.set_term_timeout(term_timeout)
-    raft_node_3.set_term_timeout(term_timeout)
+    raft_node_1.election_timeout = raft_node_1_election_timeout
+    raft_node_2.election_timeout = raft_node_2_election_timeout
+    raft_node_3.election_timeout = raft_node_3_election_timeout
+    raft_node_1.term_timeout = term_timeout
+    raft_node_2.term_timeout = term_timeout
+    raft_node_3.term_timeout = term_timeout
 
     #### TEST STAGE 1 ####
 
@@ -169,6 +169,8 @@ async def _unittest_raft_leader_election() -> None:
     assert raft_node_1.current_term >= raft_node_3.current_term
 
     #### TEST STAGE 4 ####
+
+    # This keeps failing due to raft_node_2 receiving the heartbeat, however election timeout still occurs?
 
     await asyncio.sleep(election_timeout)
 

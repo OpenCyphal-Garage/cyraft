@@ -31,13 +31,9 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
       - [x] _unittest_raft_node_init
       - [x] _unittest_raft_node_term_timeout
       - [x] _unittest_raft_node_election_timeout
-        - [ ] figure out how to close task properly
       - [x] _unittest_raft_node_election_timeout_heartbeat
       - [x] _unittest_raft_node_request_vote_rpc
       - [x] _unittest_raft_node_append_entries_rpc
-        - [ ] how to compare log entries?
-      - [ ] _unittest_raft_node_send_heartbeat?
-        - [ ] things is it requires a cluster
     - [ ] tests
       - [ ] `leader_election.py`
       - [ ] `log_replication.py`
@@ -46,7 +42,7 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
     - [ ] *Log Replication*
   - [ ] `.env-variables` and `my_env.sh` should be combined?
   - [ ] Implement Github CI
--  [ ] Refactor code into `cyraft`
+-  [x] Refactor code into `cyraft`
 
 Questions:
 
@@ -55,6 +51,10 @@ Questions:
   - `metadata`: currently always setting `priority` and `transfer_id` to 0
   - how to close properly? For example see `_unittest_raft_node_term_timeout`
   - how to compare log entries?
+- `demo/demo_cyraft.py`:
+  - how to import properly?
+- `tests/leader_election.py`:
+  - current_term is variable, don't know if this is an "issue"?
 
 ## Setup
 
