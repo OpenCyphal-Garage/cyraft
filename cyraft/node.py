@@ -56,8 +56,8 @@ class RaftNode:
 
         self.current_term_timestamp: float = time.time()
         self.last_message_timestamp: float = time.time()
-        self.election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
-        self.term_timeout = TERM_TIMEOUT
+        self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
+        self._term_timeout = TERM_TIMEOUT
 
         self.cluster: typing.List[RaftNode] = []
 
@@ -65,7 +65,7 @@ class RaftNode:
         self.current_term: int = 0
         self.voted_for: int | None = None
         self.log: typing.List[sirius_cyber_corp.LogEntry_1] = []
-        # index 0 of log contains own node info # TODO: fill out properly
+        # index 0 contains an empty entry (so that the first entry starts at index 1 as per Raft paper)
         self.log.append(
             sirius_cyber_corp.LogEntry_1(
                 term=0,
@@ -116,15 +116,31 @@ class RaftNode:
 
         self._node.start()  # Don't forget to start the node!
 
-    def set_election_timeout(self, timeout: float) -> None:
-        self.election_timeout = timeout
+    @property
+    def election_timeout(self) -> float:
+        return self._election_timeout
 
-    def set_term_timeout(self, timeout: float) -> None:
-        self.term_timeout = timeout
+    @election_timeout.setter
+    def election_timeout(self, timeout: float) -> None:
+        if timeout > 0:
+            self._election_timeout = timeout
+        else:
+            raise ValueError("Election timeout must be greater than 0")
 
-    def add_remote_node(self, node_id) -> None:
-        if node_id not in self.cluster:
-            self.cluster.append(node_id)
+    @property
+    def term_timeout(self) -> float:
+        return self._term_timeout
+
+    @term_timeout.setter
+    def term_timeout(self, timeout: float) -> None:
+        if timeout > 0:
+            self._term_timeout = timeout
+        else:
+            raise ValueError("Term timeout must be greater than 0")
+
+    # def add_remote_node(self, node_id) -> None:
+    #     if node_id not in self.cluster:
+    #         self.cluster.append(node_id)
 
     async def _serve_request_vote(
         self,
@@ -153,9 +169,6 @@ class RaftNode:
             )
 
         _logger.error("Should not reach here!")
-        _logger.error("request.term: %d", request.term)
-        _logger.error("self.current_term: %d", self.current_term)
-        _logger.error("self.voted_for: %d", self.voted_for)
 
     async def _start_election(self) -> None:
         _logger.info("Node ID: %d -- Starting election", self._node.id)
@@ -174,7 +187,7 @@ class RaftNode:
         metadata = pycyphal.presentation.ServiceRequestMetadata(
             client_node_id=self._node.id,
             timestamp=time.time(),
-            priority=1,
+            priority=0,
             transfer_id=0,
         )
         # Send request vote to all nodes in cluster, count votes
@@ -188,7 +201,7 @@ class RaftNode:
                 if response.vote_granted:
                     number_of_votes += 1
         # If votes received from majority of servers: become leader
-        if number_of_votes > number_of_nodes / 2:
+        if number_of_votes > number_of_nodes / 2:  # int(5/2) = 2, int(3/2) = 1
             _logger.info("Node ID: %d -- Became leader", self._node.id)
             self.prev_state = self.state
             self.state = RaftState.LEADER
@@ -215,9 +228,8 @@ class RaftNode:
             and metadata.client_node_id == self.voted_for  # heartbeat from leader
         ):
             _logger.info("Heartbeat received")
-            self.last_message_timestamp = metadata.timestamp
-            if request.term > self.current_term:
-                self.current_term = request.term  # update term if needed
+            self.last_message_timestamp = time.time()  # reset election timeout
+            self.current_term = request.term  # update term
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
         # Reply false if term < currentTerm (§5.1)
@@ -235,11 +247,11 @@ class RaftNode:
             _logger.info("Append entries request denied (log mismatch 2)")
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
 
-        self.append_entries_processing(request, metadata)
+        self._append_entries_processing(request, metadata)
 
         return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
-    def append_entries_processing(
+    def _append_entries_processing(
         self,
         request: sirius_cyber_corp.AppendEntries_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
@@ -251,15 +263,15 @@ class RaftNode:
         _logger.debug("new_index: %d", new_index)
         for log_index, log_entry in enumerate(self.log[1:]):
             if (
-                log_index + 1
-            ) == new_index and log_entry.term != request.log_entry.term:  # index + 1 because we skip the first entry
+                log_index + 1  # index + 1 because we skip the first entry (self.log[1:])
+            ) == new_index and log_entry.term != request.log_entry.term:
                 _logger.debug("deleting from: %d", log_index + 1)
                 del self.log[log_index + 1 :]
                 self.commit_index = log_index
                 break
 
         # Append any new entries not already in the log
-        # [in our implementation only a single entry is sent]
+        # [in our implementation only a single entry is sent at a time]
         # 1. Check if the entry already exists
         append_new_entry = True
         if new_index < len(self.log) and self.log[new_index] == request.log_entry:
@@ -274,6 +286,9 @@ class RaftNode:
 
         # If leaderCommit > commitIndex, set commitIndex =
         # min(leaderCommit, index of last new entry)
+        # Note: request.leader_commit can be less than self.commit_index if
+        #       the leader is behind and is sending old entries
+        # TODO: test this case (log replication)
         if request.leader_commit > self.commit_index:
             self.commit_index = min(request.leader_commit, new_index)
 
@@ -285,7 +300,7 @@ class RaftNode:
         # 2. Send heartbeat to all other nodes
         #    - if response is true, update next_index and match_index
         #    - if response is false
-        #       - if term is greater than current_term, convert to follower
+        #       - if response term is greater than current_term, convert to follower
         #       - if term is equal to current_term, decrease prev_log_index, update next_index and retry
         # TODO: Some timeout functionality in case a node doesn't respond?
         self.next_index = [0] * len(self.cluster)  # clear old next_index
@@ -327,6 +342,7 @@ class RaftNode:
                             _logger.info("Term mismatch, converting to follower")
                             self.current_term = response.term
                             self.state = RaftNode.FOLLOWER
+                            self.voted_for = None
                             return
                         elif response.term == self.current_term:
                             _logger.info("Incomplete log on remote node, decreasing prev_log_index")
@@ -361,7 +377,7 @@ class RaftNode:
                 break
 
             # if LEADER and term timeout is reached, increase term
-            if time.time() - self.current_term_timestamp > self.term_timeout and self.state == RaftState.LEADER:
+            if time.time() - self.current_term_timestamp > self._term_timeout and self.state == RaftState.LEADER:
                 self.current_term_timestamp = time.time()
                 self.current_term += 1
                 _logger.info(
@@ -369,9 +385,8 @@ class RaftNode:
                     self._node.id,
                     self.current_term,
                 )
-                # if leader, send heartbeat to all nodes in cluster (to update term)
-                if self.state == RaftState.LEADER:
-                    await self._send_heartbeat()
+                # send heartbeat to all nodes in cluster (to update term)
+                await self._send_heartbeat()
 
             # if leader, send heartbeat to all nodes in cluster (before election timeout)
             if (
@@ -423,11 +438,12 @@ async def _unittest_raft_node_init() -> None:
 
 async def _unittest_raft_node_term_timeout() -> None:
     """
-    Test that the node term is increased after the term timeout
+    Test that the LEADER node term is increased after the term timeout
     """
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
-    raft_node.set_election_timeout(TERM_TIMEOUT * 5)
+    raft_node.election_timeout = TERM_TIMEOUT * 5  # so that we don't start an election
+    raft_node.state = RaftState.LEADER  # only leader can increase term
     asyncio.create_task(raft_node.run())
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node.current_term == 1
@@ -435,6 +451,8 @@ async def _unittest_raft_node_term_timeout() -> None:
     assert raft_node.current_term == 2
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node.current_term == 3
+
+    # raft_node.close() # TODO: fix this, it's not working
 
 
 async def _unittest_raft_node_election_timeout() -> None:
@@ -445,12 +463,13 @@ async def _unittest_raft_node_election_timeout() -> None:
     """
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
-    raft_node.set_election_timeout(TERM_TIMEOUT * 5)
+    raft_node.election_timeout = ELECTION_TIMEOUT
     asyncio.create_task(raft_node.run())
-    await asyncio.sleep(TERM_TIMEOUT * 5)
+    await asyncio.sleep(ELECTION_TIMEOUT)
     assert raft_node.prev_state == RaftState.CANDIDATE
-    assert raft_node.state == RaftState.LEADER  # TODO: fix this
-    raft_node.close()
+    assert raft_node.state == RaftState.LEADER  # QUESTION: some way to test without directly falling into leader state?
+
+    # raft_node.close()
     # cancel all tasks # TODO: figure out how to close task properly
     # pending_tasks = asyncio.all_tasks()
     # for task in pending_tasks:
@@ -462,10 +481,10 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
     raft_node.voted_for = 42
-    raft_node.set_election_timeout(ELECTION_TIMEOUT)
+    raft_node.election_timeout = ELECTION_TIMEOUT
 
     asyncio.create_task(raft_node.run())
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # wait for right before election timeout
+    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
 
     # send heartbeat
     terms_passed = raft_node.current_term
@@ -473,7 +492,6 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
         term=raft_node.current_term,  # leader's term is equal to follower's term
         entry=EMPTY_ENTRY,  # empty log entries
     )
-    message_timestamp = time.time()
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -484,7 +502,7 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
         ),
         pycyphal.presentation.ServiceRequestMetadata(
             client_node_id=42,  # leader's node id
-            timestamp=message_timestamp,  # leader's timestamp
+            timestamp=time.time(),  # leader's timestamp
             priority=0,  # leader's priority
             transfer_id=0,  # leader's transfer id
         ),
@@ -495,7 +513,7 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     assert raft_node.state == RaftState.FOLLOWER
     assert raft_node.voted_for == 42
     # last_message_timestamp should be updated
-    assert raft_node.last_message_timestamp == message_timestamp
+    assert (time.time() - raft_node.last_message_timestamp) < (0.2 * raft_node.election_timeout)
 
     ## test that the node converts to candidate after the election timeout [if no heartbeat is received]
     await asyncio.sleep(ELECTION_TIMEOUT)
