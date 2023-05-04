@@ -9,8 +9,6 @@ import logging
 import os
 import sys
 
-# Add parent directory to Python path
-sys.path.append(os.path.abspath("/Users/maksimdrachov/cyraft"))  # Q: how to make it relative?``
 from cyraft import RaftNode
 
 _logger = logging.getLogger(__name__)
