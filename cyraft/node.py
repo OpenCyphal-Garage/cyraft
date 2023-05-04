@@ -370,12 +370,8 @@ class RaftNode:
         _logger.info("Application Node started!")
         _logger.info("Running. Press Ctrl+C to stop.")
 
-        while True:
+        while not self.closing:
             await asyncio.sleep(0.01)
-            # if closing, break # QUESTION: this is not working? (see _unittest_raft_node_election_timeout)
-            if self.closing:
-                break
-
             # if LEADER and term timeout is reached, increase term
             if time.time() - self.current_term_timestamp > self._term_timeout and self.state == RaftState.LEADER:
                 self.current_term_timestamp = time.time()
@@ -452,7 +448,8 @@ async def _unittest_raft_node_term_timeout() -> None:
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node.current_term == 3
 
-    # raft_node.close() # TODO: fix this, it's not working
+    raft_node.close()  # TODO: fix this, it's not working
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_node_election_timeout() -> None:
@@ -689,6 +686,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node.current_term == 6
     assert raft_node.voted_for == 42
     # assert raft_node.log == [index_zero_entry] + new_entries # TODO: How to compare log entries?
+    # assert raft_node.log[0] == index_zero_entry
     assert len(raft_node.log) == 1 + 3
     assert raft_node.log[0].term == 0
     assert raft_node.log[0].entry.value == 0
