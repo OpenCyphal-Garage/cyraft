@@ -54,7 +54,11 @@ Questions:
 - `demo/demo_cyraft.py`:
   - how to import properly?
 - `tests/leader_election.py`:
-  - current_term is variable, don't know if this is an "issue"?
+  - current_term is variable, don't know if this is an "issue"? -> maybe it's already fixed
+  - somehow stopping between CANDIDATE and LEADER? -> not really necessary, as long as we have prev_state, would probably make it more complicted than necessary
+  - difference of 1 term between node is not enough to determine who gets elected first
+- general:
+  - how to integrate with pycyphal?
 
 ## Setup
 

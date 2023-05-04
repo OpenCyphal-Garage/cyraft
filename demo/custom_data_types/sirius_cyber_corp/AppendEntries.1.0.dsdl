@@ -4,7 +4,7 @@ uint64 term
 uint64 prev_log_index
 uint64 prev_log_term
 uint64 leader_commit
-LogEntry.1.0 log_entry
+LogEntry.1.0[<=1] log_entry
 
 @sealed
 
