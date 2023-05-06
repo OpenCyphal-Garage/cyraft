@@ -120,7 +120,7 @@ class RaftNode:
         else:
             raise ValueError("Term timeout must be greater than 0")
 
-    async def serve_request_vote_impl(
+    async def _serve_request_vote_impl(
         self, request: sirius_cyber_corp.RequestVote_1.Request, client_node_id: int
     ) -> sirius_cyber_corp.RequestVote_1.Response:
         # Reply false if term < self.current_term (§5.1)
@@ -152,7 +152,7 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-        response = await self.serve_request_vote_impl(request, metadata.client_node_id)
+        response = await self._serve_request_vote_impl(request, metadata.client_node_id)
         return response
 
     async def _start_election(self) -> None:
@@ -222,6 +222,11 @@ class RaftNode:
                 self.current_term = request.term  # update term
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
+        # Reply false if term < currentTerm (§5.1)
+        if request.term < self.current_term:
+            _logger.info("Append entries request denied (term < currentTerm)")
+            return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
+
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
         try:
@@ -232,14 +237,13 @@ class RaftNode:
             _logger.info("Append entries request denied (log mismatch 2)")
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
 
-        self._append_entries_processing(request, metadata)
+        self._append_entries_processing(request)
 
         return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
     def _append_entries_processing(
         self,
         request: sirius_cyber_corp.AppendEntries_1.Request,
-        metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> None:
         assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
         # If an existing entry conflicts with a new one (same index
@@ -447,8 +451,6 @@ async def _unittest_raft_node_term_timeout() -> None:
 async def _unittest_raft_node_election_timeout() -> None:
     """
     Test that the node converts to candidate after the election timeout
-
-    Test that the node doesn't convert to candidate if it receives a heartbeat message
     """
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
@@ -462,7 +464,10 @@ async def _unittest_raft_node_election_timeout() -> None:
     await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
-async def _unittest_raft_node_election_timeout_heartbeat() -> None:
+async def _unittest_raft_node_heartbeat() -> None:
+    """
+    Test that the node does NOT convert to candidate if it receives a heartbeat message
+    """
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
     raft_node.voted_for = 42
@@ -475,7 +480,7 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     terms_passed = raft_node.current_term
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
-            term=terms_passed,  # leader's term
+            term=terms_passed,  # leader's term is the same as the follower's term (can also be higher)
             prev_log_index=0,  # index of log entry immediately preceding new ones
             prev_log_term=0,  # term of prevLogIndex entry
             leader_commit=0,  # leader's commitIndex
@@ -575,7 +580,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     #  | top_3 <= 10|     Name <= value
     #  |____________|
     #
-    # Step 3: Replace log entries 2 and 3 with a new entries
+    # Step 3: Replace log entries 2 and 3 with new entries
     #   ____________ ____________
     #  | 2          | 3          |     Log index
     #  | 8          | 9          |     Log term
@@ -596,7 +601,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     #  | empty <= 0 | top_1 <= 7 | top_2 <= 10| top_3 <= 11| top_4 <= 13|     Name <= value
     #  |____________|____________|____________|____________|____________|
     #
-    # Step 5: Try to append old log entry (nothing should change)
+    # Step 5: Try to append old log entry (term < currentTerm)
     #   ____________
     #  | 4          |     Log index
     #  | 9          |     Log term
@@ -836,7 +841,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=10,
+        term=9,
         prev_log_index=3,
         prev_log_term=raft_node.log[3].term,
         log_entry=new_entry,
@@ -868,8 +873,6 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node.log[4].term == 10
     assert raft_node.log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node.log[4].entry.value == 13
-
-    assert False
 
     ##### STEP 6 #####
     new_entry = sirius_cyber_corp.LogEntry_1(

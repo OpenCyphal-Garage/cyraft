@@ -41,23 +41,15 @@ The objective is to implement the Raft algorithm as an exercise, with the intent
 Questions:
 
 - `cyraft/node.py`:
-  - `self.log[0]` contains an empty entry, instead of own node info. Made this choice so log is same on all nodes.
-  - `metadata`: currently always setting `priority` and `transfer_id` to 0
-  - how to close properly? For example see `_unittest_raft_node_term_timeout`
-  - how to compare log entries?
-- `demo/demo_cyraft.py`:
-  - how to import properly?
+  - how to close properly? (fixed when running a single test, however still happens when running multiple)
 - `tests/leader_election.py`:
-  - current_term is variable, don't know if this is an "issue"? -> maybe it's already fixed
-  - somehow stopping between CANDIDATE and LEADER? -> not really necessary, as long as we have prev_state, would probably make it more complicted than necessary
   - difference of 1 term between node is not enough to determine who gets elected first
-- general:
-  - how to integrate with pycyphal?
 
 Code improvements:
-- create an RPC server is not optional
-  - why is try/except not ok?
+- currently not using network to send requests, fix this
+  - in `_send_heartbeat`: there should be some timeout if node doesn't respond
 - election and term timeouts can be done more cleanly
+  - watchdog timer, kicking the dog
 - move internal variables into RaftState (for example, only leader should have a term it is able to update)
 
 ## Setup
