@@ -175,7 +175,11 @@ class RaftNode:
         for remote_node in self.cluster:
             if remote_node._node.id != self._node.id:
                 _logger.info("Node ID: %d -- Sending request vote to node %d", self._node.id, remote_node._node.id)
-                response = await remote_node.serve_request_vote_impl(request, self._node.id)
+                # response = await remote_node._serve_request_vote_impl(request, self._node.id)
+                client_node = self._node.make_client(
+                    sirius_cyber_corp.RequestVote_1, remote_node._node.id, "request_vote"
+                )
+                response, _ = await client_node.call(request)
                 _logger.info("Node ID: %d -- Response from node %d: %s", self._node.id, remote_node._node.id, response)
                 if response.vote_granted:
                     number_of_votes += 1
@@ -562,6 +566,48 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     response = await raft_node._serve_request_vote(request, metadata)
     assert raft_node.voted_for == 42
     assert response.vote_granted == True
+
+
+async def _unittest_raft_node_start_election() -> None:
+    """
+    Test the _start_election method
+
+    Using two nodes, one has a shorter election timeout than the other.
+    """
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    raft_node_1 = RaftNode()
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.election_timeout = ELECTION_TIMEOUT * 2
+
+    raft_node_1.cluster = [raft_node_1, raft_node_2]
+    raft_node_2.cluster = [raft_node_1, raft_node_2]
+
+    asyncio.create_task(raft_node_1.run())
+    asyncio.create_task(raft_node_2.run())
+
+    await asyncio.sleep(ELECTION_TIMEOUT)
+
+    # test 1: node 1 should become candidate
+    assert raft_node_1.state == RaftState.LEADER
+    assert raft_node_1.prev_state == RaftState.CANDIDATE
+    assert raft_node_1.voted_for == 41
+
+    # test 2: node 2 should become follower
+    assert raft_node_2.state == RaftState.FOLLOWER
+    assert raft_node_2.voted_for == 41
+
+    # test 3: node 1 should send a heartbeat to node 2, remain leader
+    await asyncio.sleep(ELECTION_TIMEOUT)
+
+    assert raft_node_1.state == RaftState.LEADER
+
+    raft_node_1.close()
+    raft_node_2.close()
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_node_append_entries_rpc() -> None:
