@@ -3,14 +3,13 @@
 # pylint: disable=ungrouped-imports,wrong-import-position
 
 import os
-import sys
-import pathlib
 import asyncio
 import logging
 import pycyphal
 import typing
 import time
 import numpy as np
+
 
 # DSDL files are automatically compiled by pycyphal import hook from sources pointed by CYPHAL_PATH env variable.
 import sirius_cyber_corp  # This is our vendor-specific root namespace. Custom data types.
@@ -25,11 +24,6 @@ _logger = logging.getLogger(__name__)
 
 TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
-
-EMPTY_ENTRY = sirius_cyber_corp.Entry_1(
-    name=uavcan.primitive.String_1(value="empty"),  # empty topic name
-    value=0,  # empty topic id
-)
 
 
 class RaftNode:
@@ -69,10 +63,7 @@ class RaftNode:
         self.log.append(
             sirius_cyber_corp.LogEntry_1(
                 term=0,
-                entry=sirius_cyber_corp.Entry_1(
-                    name=uavcan.primitive.String_1(value="empty"),
-                    value=0,
-                ),
+                entry=None,
             )
         )
 
@@ -93,28 +84,19 @@ class RaftNode:
         self._node.heartbeat_publisher.vendor_specific_status_code = os.getpid() % 100
 
         # Create an RPC-server. (RequestVote)
-        try:
-            srv_request_vote = self._node.get_server(sirius_cyber_corp.RequestVote_1, "request_vote")
-            srv_request_vote.serve_in_background(self._serve_request_vote)
-            _logger.info("Request vote service is enabled")
-        except pycyphal.application.register.MissingRegisterError:
-            _logger.info(
-                "The request vote service is disabled by configuration (UAVCAN__SRV__REQUEST_VOTE__ID missing)"
-            )
+        self._node.get_server(sirius_cyber_corp.RequestVote_1, "request_vote").serve_in_background(
+            self._serve_request_vote
+        )
 
         # Create an RPC-server. (AppendEntries)
-        try:
-            srv_append_entries = self._node.get_server(sirius_cyber_corp.AppendEntries_1, "append_entries")
-            srv_append_entries.serve_in_background(self._serve_append_entries)
-            _logger.info("Append entries service is enabled")
-        except pycyphal.application.register.MissingRegisterError:
-            logging.info(
-                "The append entries service is disabled by configuration (UAVCAN__SRV__APPEND_ENTRIES__ID missing)"
-            )
+        self._node.get_server(sirius_cyber_corp.AppendEntries_1, "append_entries").serve_in_background(
+            self._serve_append_entries
+        )
 
+        # Create an RPC-server. (ExecuteCommand)
         self._node.get_server(uavcan.node.ExecuteCommand_1).serve_in_background(self._serve_execute_command)
 
-        self._node.start()  # Don't forget to start the node!
+        self._node.start()
 
     @property
     def election_timeout(self) -> float:
@@ -138,11 +120,9 @@ class RaftNode:
         else:
             raise ValueError("Term timeout must be greater than 0")
 
-    # def add_remote_node(self, node_id) -> None:
-    #     if node_id not in self.cluster:
-    #         self.cluster.append(node_id)
-
-    async def serve_request_vote_impl(self, request, client_node_id) -> sirius_cyber_corp.RequestVote_1.Response:
+    async def serve_request_vote_impl(
+        self, request: sirius_cyber_corp.RequestVote_1.Request, client_node_id: int
+    ) -> sirius_cyber_corp.RequestVote_1.Response:
         # Reply false if term < self.current_term (§5.1)
         if request.term < self.current_term or self.voted_for is not None:
             _logger.info("Request vote request denied (term < self.current_term or self.voted_for is not None))")
@@ -150,16 +130,16 @@ class RaftNode:
 
         # If voted_for is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4) # TODO: implement log comparison
-        elif self.voted_for is None or self.voted_for == metadata.client_node_id:
+        elif self.voted_for is None or self.voted_for == client_node_id:
             _logger.info("Request vote request granted")
-            self.voted_for = metadata.client_node_id
+            self.voted_for = client_node_id
             self.current_term = request.term
             return sirius_cyber_corp.RequestVote_1.Response(
                 term=self.current_term,
                 vote_granted=True,
             )
 
-        _logger.error("Should not reach here!")  # put assert here
+        assert False, "Should not reach here!"
 
     async def _serve_request_vote(
         self,
@@ -172,7 +152,8 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-        self.serve_request_vote_impl(request, metadata.client_node_id)
+        response = await self.serve_request_vote_impl(request, metadata.client_node_id)
+        return response
 
     async def _start_election(self) -> None:
         _logger.info("Node ID: %d -- Starting election", self._node.id)
@@ -220,26 +201,26 @@ class RaftNode:
             metadata.client_node_id,
         )
 
-        # heartbeat processing
-        if (
-            request.term >= self.current_term
-            and request.log_entry.entry == EMPTY_ENTRY
-            # and metadata.client_node_id == self.voted_for  # heartbeat from leader
-        ):
-            _logger.info("Node ID: %d -- Heartbeat received", self._node.id)
-            if metadata.client_node_id != self.voted_for:
-                _logger.info("Node ID: %d -- Heartbeat from new leader", self._node.id)
-                self.voted_for = metadata.client_node_id
-                self.prev_state = self.state
-                self.state = RaftState.FOLLOWER
-            self.last_message_timestamp = time.time()  # reset election timeout
-            self.current_term = request.term  # update term
-            return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
+        assert (
+            type(request.log_entry) == np.ndarray or type(request.log_entry) == list or request.log_entry == None
+        ), "log_entry must be a numpy array, list or None"
 
-        # Reply false if term < currentTerm (§5.1)
-        if request.log_entry.term < self.current_term:
-            _logger.info("Node ID: %d -- Append entries request denied (term < currentTerm)", self._node.id)
-            return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
+        # heartbeat processing
+        # if request.log_entry == None:
+        if len(request.log_entry) == 0:  # empty means heartbeat
+            if request.term < self.current_term:
+                _logger.info("Node ID: %d -- Heartbeat denied (term < currentTerm)", self._node.id)
+                return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
+            else:  # request.term >= self.current_term
+                _logger.info("Node ID: %d -- Heartbeat received", self._node.id)
+                if metadata.client_node_id != self.voted_for:
+                    _logger.info("Node ID: %d -- Heartbeat from new leader", self._node.id)
+                    self.voted_for = metadata.client_node_id
+                    self.prev_state = self.state
+                    self.state = RaftState.FOLLOWER
+                self.last_message_timestamp = time.time()  # reset election timeout
+                self.current_term = request.term  # update term
+                return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=True)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
@@ -260,6 +241,7 @@ class RaftNode:
         request: sirius_cyber_corp.AppendEntries_1.Request,
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> None:
+        assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
         # If an existing entry conflicts with a new one (same index
         # but different terms), delete the existing entry and all that
         # follow it (§5.3)
@@ -268,7 +250,7 @@ class RaftNode:
         for log_index, log_entry in enumerate(self.log[1:]):
             if (
                 log_index + 1  # index + 1 because we skip the first entry (self.log[1:])
-            ) == new_index and log_entry.term != request.log_entry.term:
+            ) == new_index and log_entry.term != request.log_entry[0].term:
                 _logger.debug("deleting from: %d", log_index + 1)
                 del self.log[log_index + 1 :]
                 self.commit_index = log_index
@@ -278,14 +260,14 @@ class RaftNode:
         # [in our implementation only a single entry is sent at a time]
         # 1. Check if the entry already exists
         append_new_entry = True
-        if new_index < len(self.log) and self.log[new_index] == request.log_entry:
+        if new_index < len(self.log) and self.log[new_index] == request.log_entry[0]:
             append_new_entry = False
             _logger.debug("entry already exists")
         # 2. If it does not exist, append it
         if append_new_entry:
-            self.log.append(request.log_entry)
+            self.log.append(request.log_entry[0])
             self.commit_index += 1
-            _logger.debug("appended: %s", request.log_entry)
+            _logger.debug("appended: %s", request.log_entry[0])
             _logger.debug("commit_index: %d", self.commit_index)
 
         # If leaderCommit > commitIndex, set commitIndex =
@@ -297,7 +279,7 @@ class RaftNode:
             self.commit_index = min(request.leader_commit, new_index)
 
         # Update current_term
-        self.current_term = request.log_entry.term
+        self.current_term = request.log_entry[0].term
 
     async def _send_heartbeat(self) -> None:
         # 1. "Send" heartbeat to itself (i.e. process it locally)
@@ -324,7 +306,7 @@ class RaftNode:
                     )
                     empty_topic_log = sirius_cyber_corp.LogEntry_1(
                         term=self.current_term,
-                        entry=EMPTY_ENTRY,
+                        entry=None,
                     )
                     request = sirius_cyber_corp.AppendEntries_1.Request(
                         term=self.current_term,
@@ -431,6 +413,7 @@ async def _unittest_raft_node_init() -> None:
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     raft_node = RaftNode()
     assert raft_node._node.id == 42
+    assert raft_node.prev_state == RaftState.FOLLOWER
     assert raft_node.state == RaftState.FOLLOWER
     # Persistent states
     assert raft_node.current_term == 0
@@ -439,7 +422,6 @@ async def _unittest_raft_node_init() -> None:
     assert raft_node.log[0].term == 0
     # Volatile states
     assert raft_node.commit_index == 0
-    # assert raft_node.last_applied == 0
 
 
 async def _unittest_raft_node_term_timeout() -> None:
@@ -458,8 +440,8 @@ async def _unittest_raft_node_term_timeout() -> None:
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node.current_term == 3
 
-    raft_node.close()  # TODO: fix this, it's not working
-    await asyncio.sleep(1)
+    raft_node.close()
+    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_election_timeout() -> None:
@@ -474,14 +456,10 @@ async def _unittest_raft_node_election_timeout() -> None:
     asyncio.create_task(raft_node.run())
     await asyncio.sleep(ELECTION_TIMEOUT)
     assert raft_node.prev_state == RaftState.CANDIDATE
-    assert raft_node.state == RaftState.LEADER  # QUESTION: some way to test without directly falling into leader state?
+    assert raft_node.state == RaftState.LEADER
 
-    # raft_node.close()
-    # cancel all tasks # TODO: figure out how to close task properly
-    # pending_tasks = asyncio.all_tasks()
-    # for task in pending_tasks:
-    #     task.cancel()
-    # await asyncio.gather(*pending_tasks, return_exceptions=True)
+    raft_node.close()
+    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_election_timeout_heartbeat() -> None:
@@ -495,17 +473,13 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
 
     # send heartbeat
     terms_passed = raft_node.current_term
-    empty_topic_log = sirius_cyber_corp.LogEntry_1(
-        term=raft_node.current_term,  # leader's term is equal to follower's term
-        entry=EMPTY_ENTRY,  # empty log entries
-    )
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
             prev_log_index=0,  # index of log entry immediately preceding new ones
             prev_log_term=0,  # term of prevLogIndex entry
             leader_commit=0,  # leader's commitIndex
-            log_entry=empty_topic_log,  # log entries to store (empty for heartbeat)
+            log_entry=None,  # log entries to store (empty for heartbeat)
         ),
         pycyphal.presentation.ServiceRequestMetadata(
             client_node_id=42,  # leader's node id
@@ -525,6 +499,9 @@ async def _unittest_raft_node_election_timeout_heartbeat() -> None:
     ## test that the node converts to candidate after the election timeout [if no heartbeat is received]
     await asyncio.sleep(ELECTION_TIMEOUT)
     assert raft_node.prev_state == RaftState.CANDIDATE
+
+    raft_node.close()
+    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
@@ -646,10 +623,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     raft_node.voted_for = 42
     index_zero_entry = sirius_cyber_corp.LogEntry_1(
         term=0,
-        entry=sirius_cyber_corp.Entry_1(
-            name=uavcan.primitive.String_1(value="empty"),
-            value=0,
-        ),
+        entry=None,
     )
 
     ##### STEP 1 #####
@@ -699,14 +673,25 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     # assert raft_node.log[0] == index_zero_entry
     assert len(raft_node.log) == 1 + 3
     assert raft_node.log[0].term == 0
+    assert raft_node.log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node.log[0].entry.value == 0
+
     assert raft_node.log[1].term == 4
+    assert raft_node.log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"  # This is kind of ugly?
     assert raft_node.log[1].entry.value == 7
     assert raft_node.log[2].term == 5
+    assert raft_node.log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node.log[2].entry.value == 8
     assert raft_node.log[3].term == 6
+    assert raft_node.log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node.log[3].entry.value == 9
     assert raft_node.commit_index == 3
+
+    # Once https://github.com/OpenCyphal/pycyphal/issues/297 is fixed, we can do this:
+    # assert raft_node.log[0] == index_zero_entry
+    # assert raft_node.log[1] == new_entries[0]
+    # assert raft_node.log[2] == new_entries[1]
+    # assert raft_node.log[3] == new_entries[2]
 
     ##### STEP 2 #####
     new_entry = sirius_cyber_corp.LogEntry_1(
@@ -733,15 +718,20 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node.current_term == 7
     assert raft_node.voted_for == 42
-    # TODO: How to compare log entries?
+
     assert len(raft_node.log) == 1 + 3
     assert raft_node.log[0].term == 0
+    assert raft_node.log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node.log[0].entry.value == 0
+
     assert raft_node.log[1].term == 4
+    assert raft_node.log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node.log[1].entry.value == 7
     assert raft_node.log[2].term == 5
+    assert raft_node.log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node.log[2].entry.value == 8
     assert raft_node.log[3].term == 7
+    assert raft_node.log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node.log[3].entry.value == 10
     assert raft_node.commit_index == 3
 
@@ -781,15 +771,18 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node.current_term == 9
     assert raft_node.voted_for == 42
-    # TODO: How to compare log entries?
+
     assert len(raft_node.log) == 1 + 3
     assert raft_node.log[0].term == 0
     assert raft_node.log[0].entry.value == 0
     assert raft_node.log[1].term == 4
+    assert raft_node.log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node.log[1].entry.value == 7
     assert raft_node.log[2].term == 8
+    assert raft_node.log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node.log[2].entry.value == 11
     assert raft_node.log[3].term == 9
+    assert raft_node.log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node.log[3].entry.value == 12
 
     ##### STEP 4 #####
@@ -817,17 +810,21 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node.current_term == 10
     assert raft_node.voted_for == 42
-    # TODO: How to compare log entries?
+
     assert len(raft_node.log) == 1 + 4
     assert raft_node.log[0].term == 0
     assert raft_node.log[0].entry.value == 0
     assert raft_node.log[1].term == 4
+    assert raft_node.log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node.log[1].entry.value == 7
     assert raft_node.log[2].term == 8
+    assert raft_node.log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node.log[2].entry.value == 11
     assert raft_node.log[3].term == 9
+    assert raft_node.log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node.log[3].entry.value == 12
     assert raft_node.log[4].term == 10
+    assert raft_node.log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node.log[4].entry.value == 13
 
     ##### STEP 5 #####
@@ -855,18 +852,24 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node.current_term == 10
     assert raft_node.voted_for == 42
-    # TODO: How to compare log entries?
+
     assert len(raft_node.log) == 1 + 4
     assert raft_node.log[0].term == 0
     assert raft_node.log[0].entry.value == 0
     assert raft_node.log[1].term == 4
+    assert raft_node.log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node.log[1].entry.value == 7
     assert raft_node.log[2].term == 8
+    assert raft_node.log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node.log[2].entry.value == 11
     assert raft_node.log[3].term == 9
+    assert raft_node.log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node.log[3].entry.value == 12
     assert raft_node.log[4].term == 10
+    assert raft_node.log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node.log[4].entry.value == 13
+
+    assert False
 
     ##### STEP 6 #####
     new_entry = sirius_cyber_corp.LogEntry_1(

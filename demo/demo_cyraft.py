@@ -9,6 +9,10 @@ import logging
 import os
 import sys
 
+# Add parent directory to Python path
+sys.path.append(
+    os.path.abspath("/Users/maksimdrachov/cyraft")
+)  # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
 from cyraft import RaftNode
 
 _logger = logging.getLogger(__name__)

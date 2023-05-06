@@ -60,6 +60,12 @@ Questions:
 - general:
   - how to integrate with pycyphal?
 
+Code improvements:
+- create an RPC server is not optional
+  - why is try/except not ok?
+- election and term timeouts can be done more cleanly
+- move internal variables into RaftState (for example, only leader should have a term it is able to update)
+
 ## Setup
 
 - Clone repo
