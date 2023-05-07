@@ -79,10 +79,40 @@ async def _unittest_raft_node_init() -> None:
 
 
 async def _unittest_raft_node_term_timeout() -> None:
-    # TODO: come back to this, once the timer functionality is implemented as it should be
-    pass
+    """
+    Test that the LEADER node term is increased after the term timeout
+    """
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node = RaftNode()
+    ELECTION_TIMEOUT = 5  # so that we don't start an election
+    TERM_TIMEOUT = 1
+    raft_node.election_timeout = ELECTION_TIMEOUT
+    raft_node.term_timeout = TERM_TIMEOUT
+    raft_node.state = RaftState.LEADER  # only leader can increase term
+    asyncio.create_task(raft_node.run())
+    await asyncio.sleep(TERM_TIMEOUT + 0.1)  # + 0.1 to make sure the timer has been reset
+    assert raft_node.current_term == 1
+    await asyncio.sleep(TERM_TIMEOUT + 0.1)
+    assert raft_node.current_term == 2
+    await asyncio.sleep(TERM_TIMEOUT + 0.1)
+    assert raft_node.current_term == 3
+
+    raft_node.close()
+    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_election_timeout() -> None:
-    # TODO: come back to this, once the timer functionality is implemented as it should be
-    pass
+    """
+    Test that the node converts to candidate after the election timeout
+    """
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node = RaftNode()
+    ELECTION_TIMEOUT = 5
+    raft_node.election_timeout = ELECTION_TIMEOUT
+    asyncio.create_task(raft_node.run())
+    await asyncio.sleep(ELECTION_TIMEOUT + 4)
+    assert raft_node.prev_state == RaftState.CANDIDATE
+    assert raft_node.state == RaftState.LEADER
+
+    raft_node.close()
+    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
