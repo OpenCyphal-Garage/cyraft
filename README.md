@@ -47,6 +47,7 @@ Questions:
 
 Code improvements:
 - currently not using network to send requests, fix this
+  - https://pycyphal.readthedocs.io/en/stable/api/pycyphal.application.html#rpc-service-clients-and-servers
   - in `_send_heartbeat`: there should be some timeout if node doesn't respond
 - election and term timeouts can be done more cleanly
   - watchdog timer, kicking the dog
