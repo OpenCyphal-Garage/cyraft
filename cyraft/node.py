@@ -507,29 +507,15 @@ class RaftNode:
         loop = asyncio.get_event_loop()
         self._next_election_timeout = loop.time() + self._election_timeout
         self._election_timer.cancel()
-        # self._election_timer = loop.call_at(self._next_election_timeout, self._call_on_election_timeout)
         self._election_timer = loop.call_at(
             self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
         )
-
-    # def _call_on_election_timeout(self):
-    #     loop = asyncio.get_event_loop()
-
-    #     # Save the task to avoid the task disappearing, see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
-    #     self._election_timeout_task = loop.create_task(self._on_election_timeout)
-
-    #     await self._election_timeout_task
-
-    #     # loop.call_soon_threadsafe(self._election_timeout_task) # Tried to force the task like this as well (even though it shouldn't be necessary since create_task documentation clearly states it will schedule the task) but doesn't work either.
 
     async def _on_election_timeout(self) -> None:
         if self.state == RaftState.FOLLOWER or self.state == RaftState.CANDIDATE:
             _logger.info(c["general"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
             self.prev_state = self.state
             self.state = RaftState.CANDIDATE
-            # loop = asyncio.get_event_loop()
-            # loop.call_soon_threadsafe(asyncio.create_task, self._start_election())
-            # loop.call_soon_threadsafe(self._start_election)
             await self._start_election()
             self._reset_election_timeout()
         elif self.state == RaftState.LEADER:
