@@ -22,6 +22,14 @@ from .state import RaftState
 
 _logger = logging.getLogger(__name__)
 
+# ANSI colors
+c = {
+    "end_color": "\033[0m",
+    "general": "\033[36m",
+    "request_vote": "\033[31m",
+    "append_entries": "\033[32m",
+}
+
 TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
@@ -128,7 +136,7 @@ class RaftNode:
 
         for node_id in remote_node_id:
             if node_id not in self.cluster and node_id != self._node.id:
-                _logger.info(f"Adding node {node_id} to cluster")
+                _logger.info(c["general"] + f"Adding node {node_id} to cluster" + c["end_color"])
                 self.cluster.append(node_id)
                 request_vote_client = self._node.make_client(sirius_cyber_corp.RequestVote_1, node_id, "request_vote")
                 self.request_vote_clients.append(request_vote_client)
@@ -147,7 +155,7 @@ class RaftNode:
 
     def remove_remote_node(self, remote_node_id: int) -> None:
         if remote_node_id in self.cluster:
-            _logger.info(f"Removing node {remote_node_id} from cluster")
+            _logger.info(c["general"] + f"Removing node {remote_node_id} from cluster" + c["end_color"])
             index = self.cluster.index(remote_node_id)
             self.cluster.pop(index)
             self.request_vote_clients.pop(index)
@@ -160,7 +168,11 @@ class RaftNode:
     ) -> sirius_cyber_corp.RequestVote_1.Response:
         # Reply false if term < self.current_term (§5.1)
         if request.term < self.current_term or self.voted_for is not None:
-            _logger.info("Request vote request denied (term < self.current_term or self.voted_for is not None))")
+            _logger.info(
+                c["request_vote"]
+                + "Request vote request denied (term < self.current_term or self.voted_for is not None))"
+                + c["end_color"]
+            )
             return sirius_cyber_corp.RequestVote_1.Response(term=self.current_term, vote_granted=False)
 
         # If voted_for is null or candidateId, and candidate’s log is at
@@ -168,7 +180,7 @@ class RaftNode:
         elif self.voted_for is None or self.voted_for == client_node_id:
             # log comparison
             if self.log[request.last_log_index].term == request.last_log_term:
-                _logger.info("Request vote request granted")
+                _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
                 self.voted_for = client_node_id
                 self.current_term = request.term
                 return sirius_cyber_corp.RequestVote_1.Response(
@@ -176,7 +188,7 @@ class RaftNode:
                     vote_granted=True,
                 )
             else:
-                _logger.info("Request vote request denied (failed log comparison)")
+                _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
                 return sirius_cyber_corp.RequestVote_1.Response(term=self.current_term, vote_granted=False)
 
         assert False, "Should not reach here!"
@@ -187,7 +199,7 @@ class RaftNode:
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.RequestVote_1.Response:
         _logger.info(
-            "Node ID: %d --\033[94mRequest vote request %s from node %d \033[0m",
+            c["request_vote"] + "Node ID: %d -- Request vote request %s from node %d" + c["end_color"],
             self._node.id,
             request,
             metadata.client_node_id,
@@ -196,7 +208,7 @@ class RaftNode:
         return response
 
     async def _start_election(self) -> None:
-        _logger.info("Node ID: %d -- Starting election", self._node.id)
+        _logger.info(c["general"] + "Node ID: %d -- Starting election" + c["end_color"], self._node.id)
         # Increment currentTerm
         self.current_term += 1
         # Vote for self
@@ -215,22 +227,35 @@ class RaftNode:
         number_of_votes = 1  # Vote for self
         for remote_node_index, remote_client in enumerate(self.request_vote_clients):  # index allows to find node id
             remote_node_id = self.cluster[remote_node_index]
-            _logger.info("Node ID: %d -- Sending request vote to node %d", self._node.id, remote_node_id)
+            _logger.info(
+                c["general"] + "Node ID: %d -- Sending request vote to node %d" + c["end_color"],
+                self._node.id,
+                remote_node_id,
+            )
             response = await remote_client(request)
             if response:
-                _logger.info("Node ID: %d -- Response from node %d: %s", self._node.id, remote_node_id, response)
+                _logger.info(
+                    c["general"] + "Node ID: %d -- Response from node %d: %s" + c["end_color"],
+                    self._node.id,
+                    remote_node_id,
+                    response,
+                )
                 if response.vote_granted:
                     number_of_votes += 1
             else:
-                _logger.info("Node ID: %d -- No response from node %d", self._node.id, remote_node_id)
+                _logger.info(
+                    c["general"] + "Node ID: %d -- No response from node %d" + c["end_color"],
+                    self._node.id,
+                    remote_node_id,
+                )
 
         # If votes received from majority of servers: become leader
         if number_of_votes > number_of_nodes / 2:  # int(5/2) = 2, int(3/2) = 1
-            _logger.info("Node ID: %d -- Became leader", self._node.id)
+            _logger.info(c["general"] + "Node ID: %d -- Became leader" + c["end_color"], self._node.id)
             self.prev_state = self.state
             self.state = RaftState.LEADER
         else:
-            _logger.info("Node ID: %d -- Election failed", self._node.id)
+            _logger.info(c["general"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
             # If AppendEntries RPC received from new leader: convert to follower
             # reset election timeout
             self.last_message_timestamp = time.time()
@@ -245,7 +270,7 @@ class RaftNode:
         metadata: pycyphal.presentation.ServiceRequestMetadata,
     ) -> sirius_cyber_corp.AppendEntries_1.Response:
         _logger.info(
-            "Node ID: %d -- \033[94mAppend entries request %s from node %d \033[0m",
+            c["append_entries"] + "Node ID: %d -- Append entries request %s from node %d" + c["end_color"],
             self._node.id,
             request,
             metadata.client_node_id,
@@ -259,12 +284,17 @@ class RaftNode:
         # if request.log_entry == None:
         if len(request.log_entry) == 0:  # empty means heartbeat
             if request.term < self.current_term:
-                _logger.info("Node ID: %d -- Heartbeat denied (term < currentTerm)", self._node.id)
+                _logger.info(
+                    c["append_entries"] + "Node ID: %d -- Heartbeat denied (term < currentTerm)" + c["end_color"],
+                    self._node.id,
+                )
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
             else:  # request.term >= self.current_term
-                _logger.info("Node ID: %d -- Heartbeat received", self._node.id)
+                _logger.info(c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"], self._node.id)
                 if metadata.client_node_id != self.voted_for:
-                    _logger.info("Node ID: %d -- Heartbeat from new leader", self._node.id)
+                    _logger.info(
+                        c["append_entries"] + "Node ID: %d -- Heartbeat from new leader" + c["end_color"], self._node.id
+                    )
                     self.voted_for = metadata.client_node_id
                     self.prev_state = self.state
                     self.state = RaftState.FOLLOWER
@@ -274,17 +304,17 @@ class RaftNode:
 
         # Reply false if term < currentTerm (§5.1)
         if request.term < self.current_term:
-            _logger.info("Append entries request denied (term < currentTerm)")
+            _logger.info(c["append_entries"] + "Append entries request denied (term < currentTerm)" + c["end_color"])
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
         try:
             if self.log[request.prev_log_index].term != request.prev_log_term:
-                _logger.info("Append entries request denied (log mismatch)")
+                _logger.info(c["append_entries"] + "Append entries request denied (log mismatch)" + c["end_color"])
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
         except IndexError:
-            _logger.info("Append entries request denied (log mismatch 2)")
+            _logger.info(c["append_entries"] + "Append entries request denied (log mismatch 2)" + c["end_color"])
             return sirius_cyber_corp.AppendEntries_1.Response(term=self.current_term, success=False)
 
         self._append_entries_processing(request)
@@ -300,12 +330,12 @@ class RaftNode:
         # but different terms), delete the existing entry and all that
         # follow it (§5.3)
         new_index = request.prev_log_index + 1
-        _logger.debug("new_index: %d", new_index)
+        _logger.debug(c["append_entries"] + "new_index: %d" + c["end_color"], new_index)
         for log_index, log_entry in enumerate(self.log[1:]):
             if (
                 log_index + 1  # index + 1 because we skip the first entry (self.log[1:])
             ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.debug("deleting from: %d", log_index + 1)
+                _logger.debug(c["append_entries"] + "deleting from: %d" + c["end_color"], log_index + 1)
                 del self.log[log_index + 1 :]
                 self.commit_index = log_index
                 break
@@ -316,13 +346,13 @@ class RaftNode:
         append_new_entry = True
         if new_index < len(self.log) and self.log[new_index] == request.log_entry[0]:
             append_new_entry = False
-            _logger.debug("entry already exists")
+            _logger.debug(c["append_entries"] + "entry already exists" + c["end_color"])
         # 2. If it does not exist, append it
         if append_new_entry:
             self.log.append(request.log_entry[0])
             self.commit_index += 1
-            _logger.debug("appended: %s", request.log_entry[0])
-            _logger.debug("commit_index: %d", self.commit_index)
+            _logger.debug(c["append_entries"] + "appended: %s" + c["end_color"], request.log_entry[0])
+            _logger.debug(c["append_entries"] + "commit_index: %d" + c["end_color"], self.commit_index)
 
         # If leaderCommit > commitIndex, set commitIndex =
         # min(leaderCommit, index of last new entry)
@@ -350,7 +380,11 @@ class RaftNode:
         # 2. Send heartbeat to all other nodes
         for remote_node_index, remote_client in enumerate(self.append_entries_clients):
             remote_node_id = self.cluster[remote_node_index]
-            _logger.info("Node ID: %d -- Sending heartbeat to node %d", self._node.id, remote_node_id)
+            _logger.info(
+                c["general"] + "Node ID: %d -- Sending heartbeat to node %d" + c["end_color"],
+                self._node.id,
+                remote_node_id,
+            )
             empty_topic_log = sirius_cyber_corp.LogEntry_1(
                 term=self.current_term,
                 entry=None,
@@ -370,11 +404,19 @@ class RaftNode:
             response = await remote_client(request, metadata=metadata)
             if response:
                 if response.success:
-                    _logger.info("Node ID: %d -- Heartbeat to node %d successful", self._node.id, remote_node_id)
+                    _logger.info(
+                        c["general"] + "Node ID: %d -- Heartbeat to node %d successful" + c["end_color"],
+                        self._node.id,
+                        remote_node_id,
+                    )
                 else:
                     if response.term > self.current_term:
                         _logger.info(
-                            "Node ID: %d -- Heartbeat to node %d failed (Term mismatch)", self._node.id, remote_node_id
+                            c["general"]
+                            + "Node ID: %d -- Heartbeat to node %d failed (Term mismatch)"
+                            + c["end_color"],
+                            self._node.id,
+                            remote_node_id,
                         )
                         self._node.prev_state = self._node.state
                         self._node.state = RaftState.FOLLOWER
@@ -382,12 +424,20 @@ class RaftNode:
                         return
                     elif response.term == self.current_term:
                         _logger.info(
-                            "Node ID: %d -- Heartbeat to node %d failed (Log mismatch)", self._node.id, remote_node_id
+                            c["general"] + "Node ID: %d -- Heartbeat to node %d failed (Log mismatch)" + c["end_color"],
+                            self._node.id,
+                            remote_node_id,
                         )
-                        _logger.info("Incomplete log on remote node, decreasing prev_log_index")
+                        _logger.info(
+                            c["general"] + "Incomplete log on remote node, decreasing prev_log_index" + c["end_color"]
+                        )
                         prev_log_index -= 1
             else:
-                _logger.info("Node ID: %d -- Heartbeat to node %d failed (No response)", self._node.id, remote_node_id)
+                _logger.info(
+                    c["general"] + "Node ID: %d -- Heartbeat to node %d failed (No response)" + c["end_color"],
+                    self._node.id,
+                    remote_node_id,
+                )
 
         # for index, remote_node in enumerate(self.cluster):
         #     if remote_node._node.id == self._node.id:
@@ -452,7 +502,7 @@ class RaftNode:
         return uavcan.node.ExecuteCommand_1.Response(uavcan.node.ExecuteCommand_1.Response.STATUS_BAD_COMMAND)
 
     def _reset_election_timeout(self) -> None:
-        _logger.info("Node ID: %d -- Resetting election timeout", self._node.id)
+        _logger.info(c["general"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
         self._next_election_timeout = loop.time() + self._election_timeout
         self._election_timer.cancel()
@@ -464,7 +514,7 @@ class RaftNode:
 
     async def _on_election_timeout(self) -> None:
         if self.state == RaftState.FOLLOWER or self.state == RaftState.CANDIDATE:
-            _logger.info("Node ID: %d -- Election timeout reached", self._node.id)
+            _logger.info(c["general"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
             self.prev_state = self.state
             self.state = RaftState.CANDIDATE
             # loop = asyncio.get_event_loop()
@@ -479,7 +529,7 @@ class RaftNode:
             assert False, "Invalid state"
 
     def _reset_term_timeout(self) -> None:
-        _logger.info("Node ID: %d -- Resetting term timeout", self._node.id)
+        _logger.info(c["general"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
         self._next_term_timeout = loop.time() + self._term_timeout
         self._term_timer.cancel()
@@ -487,7 +537,7 @@ class RaftNode:
 
     def _on_term_timeout(self) -> None:
         if self.state == RaftState.LEADER:
-            _logger.info("Node ID: %d -- Term timeout reached", self._node.id)
+            _logger.info(c["general"] + "Node ID: %d -- Term timeout reached" + c["end_color"], self._node.id)
             self.current_term += 1
             # send heartbeat to all nodes in cluster (to update term)
             # await self._send_heartbeat()
