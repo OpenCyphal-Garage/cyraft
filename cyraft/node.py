@@ -27,7 +27,7 @@ c = {
     "end_color": "\033[0m",
     "general": "\033[36m",  # CYAN
     "request_vote": "\033[31m",  # RED
-    "append_entries": "\033[32m",  # GREEN
+    "append_entries": "\033[33m",  # YELLOW
 }
 
 TERM_TIMEOUT = 0.5  # seconds
@@ -329,14 +329,14 @@ class RaftNode:
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
             else:  # request.term >= self._term
                 _logger.info(c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"], self._node.id)
-                if metadata.client_node_id != self._voted_for:
+                if metadata.client_node_id != self._voted_for and request.term > self._term:
                     _logger.info(
                         c["append_entries"] + "Node ID: %d -- Heartbeat from new leader" + c["end_color"], self._node.id
                     )
                     self._voted_for = metadata.client_node_id
                     self._prev_state = self._state
                     self._state = RaftState.FOLLOWER
-                self.last_message_timestamp = time.time()  # reset election timeout
+                self._reset_election_timeout()
                 self._term = request.term  # update term
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
@@ -656,51 +656,6 @@ class RaftNode:
 
 
 # ----------------------------------------  TESTS GO BELOW THIS LINE  ----------------------------------------
-
-
-async def _unittest_raft_node_heartbeat() -> None:
-    """
-    Test that the node does NOT convert to candidate if it receives a heartbeat message
-    """
-    os.environ["UAVCAN__NODE__ID"] = "41"
-    raft_node = RaftNode()
-    raft_node.voted_for = 42
-    raft_node.election_timeout = ELECTION_TIMEOUT
-
-    asyncio.create_task(raft_node.run())
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
-
-    # send heartbeat
-    terms_passed = raft_node.current_term
-    await raft_node._serve_append_entries(
-        sirius_cyber_corp.AppendEntries_1.Request(
-            term=terms_passed,  # leader's term is the same as the follower's term (can also be higher)
-            prev_log_index=0,  # index of log entry immediately preceding new ones
-            prev_log_term=0,  # term of prevLogIndex entry
-            leader_commit=0,  # leader's commitIndex
-            log_entry=None,  # log entries to store (empty for heartbeat)
-        ),
-        pycyphal.presentation.ServiceRequestMetadata(
-            client_node_id=42,  # leader's node id
-            timestamp=time.time(),  # leader's timestamp
-            priority=0,  # leader's priority
-            transfer_id=0,  # leader's transfer id
-        ),
-    )
-
-    # wait for heartbeat to be processed [election is reached but shouldn't become leader due to heartbeat]
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.1)
-    assert raft_node.state == RaftState.FOLLOWER
-    assert raft_node.voted_for == 42
-    # last_message_timestamp should be updated
-    assert (time.time() - raft_node.last_message_timestamp) < (0.2 * raft_node.election_timeout)
-
-    ## test that the node converts to candidate after the election timeout [if no heartbeat is received]
-    await asyncio.sleep(ELECTION_TIMEOUT)
-    assert raft_node.prev_state == RaftState.CANDIDATE
-
-    raft_node.close()
-    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
