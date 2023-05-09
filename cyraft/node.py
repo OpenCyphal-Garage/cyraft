@@ -280,6 +280,10 @@ class RaftNode:
             _logger.info(c["general"] + "Node ID: %d -- Became leader" + c["end_color"], self._node.id)
             self._prev_state = self._state
             self._state = RaftState.LEADER
+            # Schedule term timeout
+            loop = asyncio.get_event_loop()
+            self._term_timeout = loop.time() + self._term_timeout
+            self._term_timer = loop.call_at(self._term_timeout, asyncio.ensure_future, self._on_term_timeout())
         else:
             _logger.info(c["general"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
             # If AppendEntries RPC received from new leader: convert to follower
@@ -547,6 +551,17 @@ class RaftNode:
             return uavcan.node.ExecuteCommand_1.Response(uavcan.node.ExecuteCommand_1.Response.STATUS_SUCCESS)
         return uavcan.node.ExecuteCommand_1.Response(uavcan.node.ExecuteCommand_1.Response.STATUS_BAD_COMMAND)
 
+    def change_state(self, new_state: RaftState) -> None:
+        """
+        This method is used to change the state of the node.
+        """
+        self._prev_state = self._state
+        self._state = new_state
+
+        # Cancel the term timer if the node is no longer a leader.
+        if self._prev_state == RaftState.LEADER and self._state == RaftState.FOLLOWER:
+            self._term_timer.cancel()
+
     def _reset_election_timeout(self) -> None:
         """
         Once a term timeout is reached, another election callback is scheduled.
@@ -562,8 +577,9 @@ class RaftNode:
     async def _on_election_timeout(self) -> None:
         """
         This function is called upon election timeout.
-        Depending on the current state, the node either starts an election or restarts the election timeout.
+        The node either starts an election and then restarts the election timeout.
         """
+
         if self._state == RaftState.FOLLOWER or self._state == RaftState.CANDIDATE:
             _logger.info(c["general"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
             self._prev_state = self._state
@@ -572,7 +588,11 @@ class RaftNode:
             self._reset_election_timeout()
         elif self._state == RaftState.LEADER:
             # heartbeat send every term timeout should make sure no election timeout happens
-            pass
+            _logger.debug(
+                c["general"] + "Node ID: %d -- Election timeout reached, but is leader?" + c["end_color"], self._node.id
+            )
+            await self._send_heartbeat()
+            self._reset_election_timeout()
         else:
             assert False, "Invalid state"
 
@@ -584,27 +604,21 @@ class RaftNode:
         loop = asyncio.get_event_loop()
         self._next_term_timeout = loop.time() + self._term_timeout
         self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, self._on_term_timeout)
+        self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
 
-    def _on_term_timeout(self) -> None:
+    async def _on_term_timeout(self) -> None:
         """
         This function is called upon term timeout.
-        Depending on the state of the node, different actions are taken.
+        If the node is a leader, it will send a heartbeat to all nodes in the cluster.
         """
         if self._state == RaftState.LEADER:
             _logger.info(c["general"] + "Node ID: %d -- Term timeout reached" + c["end_color"], self._node.id)
             self._term += 1
-            # send heartbeat to all nodes in cluster (to update term)
-            # await self._send_heartbeat()
             self._reset_term_timeout()
-            # await self._reset_election_timeout()
-        elif self._state == RaftState.CANDIDATE:
-            self._term += 1
-        elif self._state == RaftState.FOLLOWER:
-            # term is updated by the leader, and then sent to all nodes in the cluster
-            pass
+            # send heartbeat to all nodes in cluster (to update term)
+            await self._send_heartbeat()
         else:
-            assert False, "Invalid state"
+            pass
 
     async def run(self) -> None:
         """
@@ -622,16 +636,22 @@ class RaftNode:
             self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
         )
 
-        # Schedule term timeout
-        self._next_term_timeout = loop.time() + self._term_timeout
-        self._term_timer = loop.call_at(self._next_term_timeout, self._on_term_timeout)
+        # Schedule term timeout (only for leader)
+        if self._state == RaftState.LEADER:
+            self._next_term_timeout = loop.time() + self._term_timeout
+            self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
 
     def close(self) -> None:
         """
         Cancel the timers and close the node.
         """
         self._election_timer.cancel()
-        self._term_timer.cancel()
+        try:
+            self._term_timer.cancel()
+        except AttributeError:  # This just means it was a follower/candidate
+            pass
+        assert self._election_timer.cancelled()
+        assert self._term_timer.cancelled()
         self._node.close()
 
 
