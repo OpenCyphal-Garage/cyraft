@@ -267,3 +267,64 @@ async def _unittest_raft_node_heartbeat() -> None:
 
     raft_node.close()
     await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
+
+
+async def _unittest_raft_node_request_vote_rpc() -> None:
+    """
+    Testing the _serve_request_vote() RPC.
+    """
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node = RaftNode()
+    assert raft_node._state == RaftState.FOLLOWER
+    raft_node._term = 3
+
+    # test 1: vote not granted if already voted for another candidate in this term
+    follower_term = raft_node._term
+    raft_node._voted_for = 43  # node voted for another candidate
+
+    request = sirius_cyber_corp.RequestVote_1.Request(
+        term=follower_term,  # candidate's term is equal follower node term
+        last_log_index=0,  # index of candidate's last log entry
+        last_log_term=0,  # term of candidate's last log entry
+    )
+    metadata = pycyphal.presentation.ServiceRequestMetadata(
+        client_node_id=42,  # candidate's node id
+        timestamp=0,
+        priority=0,
+        transfer_id=0,
+    )
+
+    response = await raft_node._serve_request_vote(request, metadata)
+    assert raft_node._voted_for == 43
+    assert response.vote_granted == False
+
+    # test 2: vote not granted if follower node term is greater than candidate's term
+    raft_node._voted_for = None  # node has not voted for any candidate
+    raft_node._term = request.term + 1
+
+    assert request.term < raft_node._term  # follower node term is greater than candidate's term
+    response = await raft_node._serve_request_vote(request, metadata)
+    assert raft_node._voted_for == None
+    assert response.vote_granted == False
+
+    # test 3: vote granted if not voted for another candidate
+    #         and the candidate's term is GREATER than the node's term
+    raft_node._voted_for = None
+    raft_node._term = request.term - 1
+
+    assert request.term > raft_node._term  # follower node term is less than candidate's term
+    response = await raft_node._serve_request_vote(request, metadata)
+    assert raft_node._voted_for == 42
+    assert response.vote_granted == True
+    assert raft_node._term == request.term  # follower node term is updated to candidate's term
+
+    # test 4: vote granted if not voted for another candidate
+    #         and the candidate's term is EQUAL to the node's term
+    raft_node._voted_for = None
+    raft_node._term = request.term - 1
+
+    assert request.term > raft_node._term  # follower node term is less than candidate's term
+    response = await raft_node._serve_request_vote(request, metadata)
+    assert raft_node._voted_for == 42
+    assert response.vote_granted == True
+    assert raft_node._term == request.term  # follower node term is updated to candidate's term

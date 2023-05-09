@@ -183,16 +183,17 @@ class RaftNode:
         the method will either grant or deny the vote.
         """
         # Reply false if term < self._term (§5.1)
-        if request.term < self._term or self._voted_for is not None:
+        # (or if already voted for another candidate in this term)
+        if request.term < self._term or (self._voted_for is not None and request.term == self._term):
             _logger.info(
                 c["request_vote"]
-                + "Request vote request denied (term < self._term or self._voted_for is not None))"
+                + "Request vote request denied (term < self._term or already voted for another candidate in this term)"
                 + c["end_color"]
             )
             return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
         # If voted_for is null or candidateId, and candidate’s log is at
-        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4) # TODO: implement log comparison
+        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
         elif self._voted_for is None or self._voted_for == client_node_id:
             # log comparison
             if self._log[request.last_log_index].term == request.last_log_term:
@@ -656,61 +657,6 @@ class RaftNode:
 
 
 # ----------------------------------------  TESTS GO BELOW THIS LINE  ----------------------------------------
-
-
-async def _unittest_raft_node_request_vote_rpc() -> None:
-    """
-    - Reply false if term < currentTerm
-    - If votedFor is null or candidateId, and candidate's log is at least as up-to-date as receiver's log, grant vote
-    """
-    os.environ["UAVCAN__NODE__ID"] = "41"
-    raft_node = RaftNode()
-
-    request = sirius_cyber_corp.RequestVote_1.Request(
-        term=1,  # candidate's term
-        last_log_index=1,  # index of candidate's last log entry
-        last_log_term=1,  # term of candidate's last log entry
-    )
-    metadata = pycyphal.presentation.ServiceRequestMetadata(
-        client_node_id=42,  # voter's node id
-        timestamp=0,  # voter's timestamp
-        priority=0,  # voter's priority
-        transfer_id=0,  # voter's transfer id
-    )
-
-    # test 1: vote not granted if already voted for another candidate
-    raft_node.voted_for = 43  # node voted for another candidate
-    raft_node.current_term = 1  # node's term is equal to candidate's term
-    assert request.term == raft_node.current_term
-    response = await raft_node._serve_request_vote(request, metadata)
-    assert raft_node.voted_for == 43
-    assert response.vote_granted == False
-
-    # test 2: vote not granted if node's term is greater than candidate's term
-    raft_node.voted_for = None  # node has not voted for any candidate
-    raft_node.current_term = 2  # node's term is greater than candidate's term
-    assert request.term < raft_node.current_term
-    response = await raft_node._serve_request_vote(request, metadata)
-    assert raft_node.voted_for == None
-    assert response.vote_granted == False
-
-    # test 3: vote granted if not voted for another candidate
-    #         and the candidate's term is greater than the node's term
-    raft_node.voted_for = None
-    raft_node.current_term = 0
-    assert not request.term < raft_node.current_term
-    response = await raft_node._serve_request_vote(request, metadata)
-    assert raft_node.voted_for == 42
-    assert response.vote_granted == True
-
-    # test 4: vote granted if not voted for another candidate
-    #         and the candidate's term is equal to the node's term
-    raft_node.voted_for = None  # node has not voted for any candidate
-    raft_node.current_term = 1  # node's term is equal to candidate's term
-    assert not request.term < raft_node.current_term
-    response = await raft_node._serve_request_vote(request, metadata)
-    assert raft_node.voted_for == 42
-    assert response.vote_granted == True
 
 
 async def _unittest_raft_node_start_election() -> None:
