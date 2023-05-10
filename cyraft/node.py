@@ -21,12 +21,13 @@ import uavcan.node  # noqa
 from .state import RaftState
 
 _logger = logging.getLogger(__name__)
+_logger.setLevel(logging.INFO)
 
 # ANSI colors for logging
 c = {
     "end_color": "\033[0m",
     "general": "\033[36m",  # CYAN
-    "request_vote": "\033[31m",  # RED
+    "request_vote": "\033[35m",  # PURPLE
     "append_entries": "\033[33m",  # YELLOW
 }
 
@@ -343,17 +344,30 @@ class RaftNode:
 
         # Reply false if term < currentTerm (§5.1)
         if request.term < self._term:
-            _logger.info(c["append_entries"] + "Append entries request denied (term < currentTerm)" + c["end_color"])
+            _logger.info(
+                c["append_entries"]
+                + "Node ID: %d -- Append entries request denied (term < currentTerm)"
+                + c["end_color"],
+                self._node.id,
+            )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
         try:
             if self._log[request.prev_log_index].term != request.prev_log_term:
-                _logger.info(c["append_entries"] + "Append entries request denied (log mismatch)" + c["end_color"])
+                _logger.info(
+                    c["append_entries"]
+                    + "Node ID: %d -- Append entries request denied (log mismatch)"
+                    + c["end_color"],
+                    self._node.id,
+                )
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
         except IndexError:
-            _logger.info(c["append_entries"] + "Append entries request denied (log mismatch 2)" + c["end_color"])
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- Append entries request denied (log mismatch 2)" + c["end_color"],
+                self._node.id,
+            )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         self._append_entries_processing(request)
@@ -372,12 +386,16 @@ class RaftNode:
         # but different terms), delete the existing entry and all that
         # follow it (§5.3)
         new_index = request.prev_log_index + 1
-        _logger.debug(c["append_entries"] + "new_index: %d" + c["end_color"], new_index)
+        _logger.info(c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"], self._node.id, new_index)
         for log_index, log_entry in enumerate(self._log[1:]):
             if (
                 log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
             ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.debug(c["append_entries"] + "deleting from: %d" + c["end_color"], log_index + 1)
+                _logger.info(
+                    c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
+                    self._node.id,
+                    log_index + 1,
+                )
                 del self._log[log_index + 1 :]
                 self._commit_index = log_index
                 break
@@ -388,13 +406,21 @@ class RaftNode:
         append_new_entry = True
         if new_index < len(self._log) and self._log[new_index] == request.log_entry[0]:
             append_new_entry = False
-            _logger.debug(c["append_entries"] + "entry already exists" + c["end_color"])
+            _logger.info(c["append_entries"] + "Node ID: %d -- entry already exists" + c["end_color"], self._node.id)
         # 2. If it does not exist, append it
         if append_new_entry:
             self._log.append(request.log_entry[0])
             self._commit_index += 1
-            _logger.debug(c["append_entries"] + "appended: %s" + c["end_color"], request.log_entry[0])
-            _logger.debug(c["append_entries"] + "commit_index: %d" + c["end_color"], self._commit_index)
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- appended: %s" + c["end_color"],
+                self._node.id,
+                request.log_entry[0],
+            )
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- commit_index: %d" + c["end_color"],
+                self._node.id,
+                self._commit_index,
+            )
 
         # If leaderCommit > commitIndex, set commitIndex =
         # min(leaderCommit, index of last new entry)
@@ -436,23 +462,30 @@ class RaftNode:
                 self._node.id,
                 remote_node_id,
             )
-            empty_topic_log = sirius_cyber_corp.LogEntry_1(
-                term=self._term,
-                entry=None,
-            )
+            # empty_topic_log = sirius_cyber_corp.LogEntry_1(
+            #     term=self._term,
+            #     entry=None,
+            # )
             request = sirius_cyber_corp.AppendEntries_1.Request(
                 term=self._term,
                 prev_log_index=self._commit_index,
                 prev_log_term=self._log[self._commit_index].term,
-                log_entry=empty_topic_log,
+                log_entry=None,
             )
-            metadata = sirius_cyber_corp.Metadata(
-                client_node_id=self._node.id,  # leader's node id
-                timestamp=time.time(),
-                priority=0,
-                transfer_id=0,
+            _logger.info(
+                c["general"] + "Node ID: %d -- prev_log_index: %d, prev_log_term: %d" + c["end_color"],
+                self._node.id,
+                request.prev_log_index,
+                request.prev_log_term,
             )
-            response = await remote_client(request, metadata=metadata)
+            # metadata = pycyphal.presentation.ServiceRequestMetadata(
+            #     client_node_id=self._node.id,  # leader's node id
+            #     timestamp=time.time(),
+            #     priority=0,
+            #     transfer_id=0,
+            # )
+            assert len(request.log_entry) == 0
+            response = await remote_client(request)
             if response:
                 if response.success:
                     _logger.info(
@@ -469,8 +502,8 @@ class RaftNode:
                             self._node.id,
                             remote_node_id,
                         )
-                        self._node.prev_state = self._node.state
-                        self._node.state = RaftState.FOLLOWER
+                        self._prev_state = self._state
+                        self._state = RaftState.FOLLOWER
                         self._voted_for = None
                         return
                     elif response.term == self._term:
@@ -589,7 +622,7 @@ class RaftNode:
             self._reset_election_timeout()
         elif self._state == RaftState.LEADER:
             # heartbeat send every term timeout should make sure no election timeout happens
-            _logger.debug(
+            _logger.info(
                 c["general"] + "Node ID: %d -- Election timeout reached, but is leader?" + c["end_color"], self._node.id
             )
             await self._send_heartbeat()
@@ -647,66 +680,16 @@ class RaftNode:
         Cancel the timers and close the node.
         """
         self._election_timer.cancel()
+        assert self._election_timer.cancelled()
         try:
             self._term_timer.cancel()
+            assert self._term_timer.cancelled()
         except AttributeError:  # This just means it was a follower/candidate
             pass
-        assert self._election_timer.cancelled()
-        assert self._term_timer.cancelled()
         self._node.close()
 
 
 # ----------------------------------------  TESTS GO BELOW THIS LINE  ----------------------------------------
-
-
-async def _unittest_raft_node_start_election() -> None:
-    """
-    Test the _start_election method
-
-    Using two nodes, one has a shorter election timeout than the other.
-    """
-    os.environ["UAVCAN__NODE__ID"] = "41"
-    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
-    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
-    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
-    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
-    raft_node_1 = RaftNode()
-    raft_node_1.election_timeout = ELECTION_TIMEOUT
-    os.environ["UAVCAN__NODE__ID"] = "42"
-    raft_node_2 = RaftNode()
-    raft_node_2.election_timeout = ELECTION_TIMEOUT * 2
-
-    # raft_node_1.cluster = [raft_node_1, raft_node_2]
-    # raft_node_2.cluster = [raft_node_1, raft_node_2]
-
-    cluster_nodes = [raft_node_1._node.id, raft_node_2._node.id]
-    assert cluster_nodes == [41, 42]
-
-    raft_node_1.add_remote_node(cluster_nodes)
-    raft_node_2.add_remote_node(cluster_nodes)
-
-    asyncio.create_task(raft_node_1.run())
-    asyncio.create_task(raft_node_2.run())
-
-    await asyncio.sleep(ELECTION_TIMEOUT)
-
-    # test 1: node 1 should become candidate
-    assert raft_node_1.state == RaftState.LEADER
-    assert raft_node_1.prev_state == RaftState.CANDIDATE
-    assert raft_node_1.voted_for == 41
-
-    # test 2: node 2 should become follower
-    assert raft_node_2.state == RaftState.FOLLOWER
-    assert raft_node_2.voted_for == 41
-
-    # test 3: node 1 should send a heartbeat to node 2, remain leader
-    await asyncio.sleep(ELECTION_TIMEOUT)
-
-    assert raft_node_1.state == RaftState.LEADER
-
-    raft_node_1.close()
-    raft_node_2.close()
-    await asyncio.sleep(1)
 
 
 async def _unittest_raft_node_append_entries_rpc() -> None:
