@@ -172,6 +172,23 @@ class RaftNode:
             self._next_index.pop(index)
             self._match_index.pop(index)
 
+    async def _serve_request_vote(
+        self,
+        request: sirius_cyber_corp.RequestVote_1.Request,
+        metadata: pycyphal.presentation.ServiceRequestMetadata,
+    ) -> sirius_cyber_corp.RequestVote_1.Response:
+        """
+        This method receives the request vote request from the candidate and calls the implementation method.
+        """
+        _logger.info(
+            c["request_vote"] + "Node ID: %d -- Request vote request %s from node %d" + c["end_color"],
+            self._node.id,
+            request,
+            metadata.client_node_id,
+        )
+        response = await self._serve_request_vote_impl(request, metadata.client_node_id)
+        return response
+
     async def _serve_request_vote_impl(
         self, request: sirius_cyber_corp.RequestVote_1.Request, client_node_id: int
     ) -> sirius_cyber_corp.RequestVote_1.Response:
@@ -210,23 +227,6 @@ class RaftNode:
                 return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
         assert False, "Should not reach here!"
-
-    async def _serve_request_vote(
-        self,
-        request: sirius_cyber_corp.RequestVote_1.Request,
-        metadata: pycyphal.presentation.ServiceRequestMetadata,
-    ) -> sirius_cyber_corp.RequestVote_1.Response:
-        """
-        This method receives the request vote request from the candidate and calls the implementation method.
-        """
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Request vote request %s from node %d" + c["end_color"],
-            self._node.id,
-            request,
-            metadata.client_node_id,
-        )
-        response = await self._serve_request_vote_impl(request, metadata.client_node_id)
-        return response
 
     async def _start_election(self) -> None:
         """
@@ -282,9 +282,9 @@ class RaftNode:
             self._change_state(RaftState.LEADER)
         else:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
-            # If AppendEntries RPC received from new leader: convert to follower
-            self._change_state(RaftState.FOLLOWER)
-            self._voted_for = None
+            # If election fails, reset election timeout and try again
+            self._change_state(RaftState.CANDIDATE)
+            self._reset_election_timeout()
 
     async def _serve_append_entries(
         self,
@@ -479,13 +479,12 @@ class RaftNode:
                     if response.term > self._term:
                         _logger.info(
                             c["raft_logic"]
-                            + "Node ID: %d -- Heartbeat to node %d failed (Term mismatch)"
+                            + "Node ID: %d -- Heartbeat to node %d failed (remote term > local term)"
                             + c["end_color"],
                             self._node.id,
                             remote_node_id,
                         )
-                        self._prev_state = self._state
-                        self._state = RaftState.FOLLOWER
+                        self._change_state(RaftState.FOLLOWER)
                         self._voted_for = None
                         return
                     elif response.term == self._term:
@@ -496,12 +495,6 @@ class RaftNode:
                             self._node.id,
                             remote_node_id,
                         )
-                        _logger.info(
-                            c["raft_logic"]
-                            + "Incomplete log on remote node, decreasing prev_log_index"
-                            + c["end_color"]
-                        )
-                        prev_log_index -= 1
             else:
                 _logger.info(
                     c["raft_logic"] + "Node ID: %d -- Heartbeat to node %d failed (No response)" + c["end_color"],
@@ -579,6 +572,8 @@ class RaftNode:
         self._prev_state = self._state
         self._state = new_state
 
+        _logger.info("Node ID: %d -- Changing state from %s to %s", self._node.id, self._prev_state, self._state)
+
         # Cancel the term timer if the node is no longer a leader.
         if self._prev_state == RaftState.LEADER and self._state == RaftState.FOLLOWER:
             self._term_timer.cancel()
@@ -634,8 +629,12 @@ class RaftNode:
         If the node is a leader, it will send a heartbeat to all nodes in the cluster.
         """
         if self._state == RaftState.LEADER:
-            _logger.info(c["raft_logic"] + "Node ID: %d -- Term timeout reached" + c["end_color"], self._node.id)
             self._term += 1
+            _logger.info(
+                c["raft_logic"] + "Node ID: %d -- Term timeout reached, new term: %d" + c["end_color"],
+                self._node.id,
+                self._term,
+            )
             self._reset_term_timeout()
             # send heartbeat to all nodes in cluster (to update term)
             await self._send_heartbeat()
