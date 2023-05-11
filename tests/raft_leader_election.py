@@ -248,13 +248,18 @@ async def _unittest_raft_fsm_2():
     assert raft_node_1._voted_for == 41
 
 
-async def test_raft_node_fsm_3():
-    _logger.info("================== TEST STAGE 8/9: node with higher term gets elected ==================")
+async def _unittest_raft_fsm_3():
+    logging.root.setLevel(logging.INFO)
 
-    raft_node_1.close()  # let's just reset, so we can start from scratch
-    del raft_node_1
-    del raft_node_2
-    del raft_node_3
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.5
+    ELECTION_TIMEOUT = 5
+
+    _logger.info("================== TEST STAGE 8/9: node with higher term gets elected ==================")
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
@@ -309,14 +314,21 @@ async def test_raft_node_fsm_3():
     assert raft_node_2._term >= raft_node_1._term
     assert raft_node_2._term >= raft_node_3._term
 
+
+async def _unittest_raft_fsm_4():
+    logging.root.setLevel(logging.INFO)
+
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.5
+    ELECTION_TIMEOUT = 5
+
     _logger.info(
         "================== TEST STAGE 10/11: 1 CANDIDATE, 1 LEADER, leader asserts dominance =================="
     )
-
-    raft_node_1.close()
-    del raft_node_1
-    del raft_node_2
-    del raft_node_3
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
@@ -343,7 +355,7 @@ async def test_raft_node_fsm_3():
     raft_node_2._change_state(RaftState.CANDIDATE)  # this is not strictly necessary, but it's more realistic
     raft_node_2._change_state(RaftState.LEADER)
     raft_node_2._voted_for = 42
-    raft_node_2._term = 2
+    raft_node_2._term = 1
     raft_node_3._change_state(RaftState.FOLLOWER)
     raft_node_3._voted_for = 42
 
@@ -351,154 +363,22 @@ async def test_raft_node_fsm_3():
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
 
-    await asyncio.sleep(ELECTION_TIMEOUT)
+    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 12, "received heartbeat from LEADER"
+    assert raft_node_1._term == 11, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
-    assert raft_node_2._term == 12, "+ 10 due to term timeout"
+    assert raft_node_2._term == 11, "+ 10 due to term timeout"
     assert raft_node_2._voted_for == 42
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 12, "received heartbeat from LEADER"
+    assert raft_node_3._term == 11, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term
     assert raft_node_2._term >= raft_node_3._term
-
-    assert False
-
-
-async def _unittest_raft_leader_election_2() -> None:
-    def reset_node(node: RaftNode) -> None:
-        """
-        This will reset the node. This is useful for testing and debugging.
-        """
-        node.prev_state: RaftState = RaftState.FOLLOWER
-        node.state: RaftState = RaftState.FOLLOWER
-        node.current_term_timestamp: float = time.time()
-        node.last_message_timestamp: float = time.time()
-        node.current_term = 0
-        node.voted_for = None
-
-    #### SETUP ####
-    logging.root.setLevel(logging.INFO)
-
-    # start new raft nodes
-    os.environ["UAVCAN__NODE__ID"] = "41"
-    raft_node_1 = RaftNode()
-    os.environ["UAVCAN__NODE__ID"] = "42"
-    raft_node_2 = RaftNode()
-    os.environ["UAVCAN__NODE__ID"] = "43"
-    raft_node_3 = RaftNode()
-
-    # make all part of the same cluster
-    raft_node_1.cluster = [raft_node_1, raft_node_2, raft_node_3]
-    raft_node_2.cluster = [raft_node_1, raft_node_2, raft_node_3]
-    raft_node_3.cluster = [raft_node_1, raft_node_2, raft_node_3]
-
-    # setup election and term timeout
-    election_timeout = 2
-    term_timeout = 1
-    raft_node_1.election_timeout = election_timeout
-    raft_node_2.election_timeout = election_timeout
-    raft_node_3.election_timeout = election_timeout + 2
-    raft_node_1.term_timeout = term_timeout
-    raft_node_2.term_timeout = term_timeout
-    raft_node_3.term_timeout = term_timeout
-
-    #### TEST STAGE 8/9 ####
-
-    raft_node_1.prev_state = RaftState.CANDIDATE
-    raft_node_1.state = RaftState.LEADER
-    raft_node_1.current_term = 5
-    raft_node_1.voted_for = 41
-
-    raft_node_2.prev_state = RaftState.CANDIDATE
-    raft_node_2.state = RaftState.LEADER
-    raft_node_2.current_term = (
-        raft_node_1.current_term + 2
-    )  # higher term than node 1, +1 doesn't work because of election timeout increasing term of node 1
-    raft_node_2.voted_for = 42
-
-    raft_node_3.prev_state = RaftState.FOLLOWER
-    raft_node_3.state = RaftState.FOLLOWER
-    raft_node_3.current_term = 0
-    raft_node_3.voted_for = None
-
-    asyncio.create_task(raft_node_1.run())
-    asyncio.create_task(raft_node_2.run())
-    asyncio.create_task(raft_node_3.run())
-
-    await asyncio.sleep(election_timeout)
-
-    assert raft_node_1.prev_state == RaftState.LEADER
-    assert raft_node_1.state == RaftState.FOLLOWER
-    # assert raft_node_1.current_term == 6
-    assert raft_node_1.voted_for == 42
-
-    assert raft_node_2.prev_state == RaftState.CANDIDATE
-    assert raft_node_2.state == RaftState.LEADER
-    # assert raft_node_2.current_term == 6
-    assert raft_node_2.voted_for == 42
-
-    assert raft_node_3.prev_state == RaftState.FOLLOWER
-    assert raft_node_3.state == RaftState.FOLLOWER
-    # assert raft_node_3.current_term == 6
-    assert raft_node_3.voted_for == 42
-
-    assert raft_node_2.current_term >= raft_node_1.current_term
-    assert raft_node_2.current_term >= raft_node_3.current_term
-
-    #### TEST STAGE 10 ####
-    _logger.info("TEST STAGE 10")
-
-    reset_node(raft_node_1)
-    reset_node(raft_node_2)
-    reset_node(raft_node_3)
-
-    raft_node_1.prev_state = raft_node_1.state
-    raft_node_1.state = RaftState.CANDIDATE
-
-    raft_node_2.prev_state = RaftState.CANDIDATE
-    raft_node_2.state = RaftState.LEADER
-
-    raft_node_3.prev_state = RaftState.FOLLOWER
-    raft_node_3.state = RaftState.FOLLOWER
-
-    _logger.info("raft node 1 prev_state: %s", raft_node_1.prev_state)
-    _logger.info("raft node 1 state: %s", raft_node_1.state)
-
-    await asyncio.sleep(election_timeout)
-
-    assert raft_node_1.prev_state == RaftState.CANDIDATE
-    assert raft_node_1.state == RaftState.FOLLOWER
-    # assert raft_node_1.current_term == 6
-    assert raft_node_1.voted_for == 42
-
-    assert raft_node_2.prev_state == RaftState.CANDIDATE
-    assert raft_node_2.state == RaftState.LEADER
-    # assert raft_node_2.current_term == 6
-    assert raft_node_2.voted_for == 42
-
-    assert raft_node_3.prev_state == RaftState.FOLLOWER
-    assert raft_node_3.state == RaftState.FOLLOWER
-    # assert raft_node_3.current_term == 6
-    assert raft_node_3.voted_for == 42
-
-    assert raft_node_2.current_term >= raft_node_1.current_term
-    assert raft_node_2.current_term >= raft_node_3.current_term
-
-    assert False
-
-    # stop tasks
-    # tasks = asyncio.all_tasks()
-    # for task in tasks:
-    #     task.cancel()
-
-    # QUESTION: all these "Task was destroyed but it is pending!" warnings?
