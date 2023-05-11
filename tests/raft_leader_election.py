@@ -30,68 +30,68 @@ from cyraft import RaftState
 
 _logger = logging.getLogger(__name__)
 
+"""
+Test the Raft FSM (see Figure 4, https://raft.github.io/raft.pdf)
 
-async def _unittest_raft_fsm() -> None:
-    """
-    Test the Raft FSM (see Figure 4, https://raft.github.io/raft.pdf)
+- at any given time each server is in one of three states: leader, follower or candidate
+- state transitions:
+    - FOLLOWER
+        - starts as a follower (1)
+        - times out, starts election -> CANDIDATE  (2)
+    - CANDIDATE
+        - if election timeout elapses: start new election -> CANDIDATE (3)
+        - if votes received from majority of servers -> LEADER (4)
+        - discovers current leader or new term -> FOLLOWER (5.1, 5.2)
+    - LEADER
+        - discovers server with higher term -> FOLLOWER (6)
 
-    - at any given time each server is in one of three states: leader, follower or candidate
-    - state transitions:
-        - FOLLOWER
-            - starts as a follower (1)
-            - times out, starts election -> CANDIDATE  (2)
-        - CANDIDATE
-            - if election timeout elapses: start new election -> CANDIDATE (3)
-            - if votes received from majority of servers -> LEADER (4)
-            - discovers current leader or new term -> FOLLOWER (5.1, 5.2)
-        - LEADER
-            - discovers server with higher term -> FOLLOWER (6)
+Node 1                      Node 2                        Node 3                       TEST STAGES
++-------------------------+ +---------------------------+ +-------------------------+
+        |(1)                        |(1)                          |(1)
+        V                           V                             V
+        Follower                    Follower                      Follower              [1]
+------------------------------------Election timeout---------------------------------
+        |(2)                        |                             |
+        V                           V                             V
+        Candidate                   Follower                      Follower              [2]
+        |(4)                        |                             |
+        V                           V                             V
+        Leader                      Follower                      Follower              [3]
+------------------------------------Election timeouts--------------------------------
+        Leader                      Follower                      Follower              [4]
+====================================Hard (re)set=====================================
+        Follower                    Disabled                      Disabled              [5]
+        |(2)                        |                             |
+        V                           V                             V
+        Candidate                   Disabled                      Disabled              [6]
+        |(3)                        |                             |
+        V                           V                             V
+        Candidate                   Disabled                      Disabled              [7]
+====================================Hard (re)set=====================================
+        Leader                      Leader (higher term than 1)   Follower              [8]
+        |(6)                        |                             |
+        V                           V                             V
+        Follower                    Leader                        Follower              [9]
+====================================Hard (re)set=====================================
+        Candidate                   Leader                        Follower              [10]
+        |(5.1)                      |                             |
+        V                           V                             V
+        Follower                    Leader                        Follower              [11]
+====================================Hard (re)set=====================================
+        Candidate                   Candidate (higher term)       Follower              [12]
+        |(5.2)                      |                             |
+        V                           V                             V
+        Follower                    Leader                        Follower              [13]
 
-    Node 1                      Node 2                        Node 3                       TEST STAGES
-    +-------------------------+ +---------------------------+ +-------------------------+
-            |(1)                        |(1)                          |(1)
-            V                           V                             V
-            Follower                    Follower                      Follower              [1]
-    ------------------------------------Election timeout---------------------------------
-            |(2)                        |                             |
-            V                           V                             V
-            Candidate                   Follower                      Follower              [2]
-            |(4)                        |                             |
-            V                           V                             V
-            Leader                      Follower                      Follower              [3]
-    ------------------------------------Election timeouts--------------------------------
-            Leader                      Follower                      Follower              [4]
-    ====================================Hard (re)set=====================================
-            Follower                    Disabled                      Disabled              [5]
-            |(2)                        |                             |
-            V                           V                             V
-            Candidate                   Disabled                      Disabled              [6]
-            |(3)                        |                             |
-            V                           V                             V
-            Candidate                   Disabled                      Disabled              [7]
-    ====================================Hard (re)set=====================================
-            Leader                      Leader (higher term than 1)   Follower              [8]
-            |(6)                        |                             |
-            V                           V                             V
-            Follower                    Leader                        Follower              [9]
-    ====================================Hard (re)set=====================================
-            Candidate                   Leader                        Follower              [10]
-            |(5.1)                      |                             |
-            V                           V                             V
-            Follower                    Leader                        Follower              [11]
-    ====================================Hard (re)set=====================================
-            Candidate                   Candidate (higher term)       Follower              [12]
-            |(5.2)                      |                             |
-            V                           V                             V
-            Follower                    Leader                        Follower              [13]
+To check on every state transition:
+- prev_state
+- state
+- current_term
+- voted_for
+"""
 
-    To check on every state transition:
-    - prev_state
-    - state
-    - current_term
-    - voted_for
-    """
 
+async def _unittest_raft_fsm_1() -> None:
     #### SETUP ####
     logging.root.setLevel(logging.INFO)
 
@@ -152,14 +152,19 @@ async def _unittest_raft_fsm() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.LEADER
+    assert (
+        raft_node_1._term == 2
+    ), "+1 due to starting election, +1 due to term timeout (this last one is not guaranteed?)"
     assert raft_node_1._voted_for == 41
 
     assert raft_node_2._prev_state == RaftState.FOLLOWER
     assert raft_node_2._state == RaftState.FOLLOWER
+    assert raft_node_2._term == 2, "received heartbeat from LEADER"
     assert raft_node_2._voted_for == 41
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_3._term == 2, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 41
 
     assert raft_node_1._term >= raft_node_2._term, "LEADER term should be higher (or equal) than FOLLOWER"
@@ -171,42 +176,82 @@ async def _unittest_raft_fsm() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.LEADER
+    assert raft_node_1._term == 12, "+ 10 due to term timeout"
     assert raft_node_1._voted_for == 41
 
     assert raft_node_2._prev_state == RaftState.FOLLOWER
     assert raft_node_2._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 12, "received heartbeat from LEADER"
     assert raft_node_2._voted_for == 41
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 12, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 41
 
     assert raft_node_1._term >= raft_node_2._term
     assert raft_node_1._term >= raft_node_3._term
 
+    assert False
+
+
+async def _unittest_raft_fsm_2():
+    logging.root.setLevel(logging.INFO)
+
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.5
+    ELECTION_TIMEOUT = 5
+
     _logger.info("================== TEST STAGE 5/6/7: node can't become LEADER, stays CANDIDATE ==================")
+
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node_1 = RaftNode()
+    raft_node_1.term_timeout = TERM_TIMEOUT
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.term_timeout = TERM_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "43"
+    raft_node_3 = RaftNode()
+    raft_node_3.term_timeout = TERM_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT
+
+    # make all part of the same cluster
+    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+    raft_node_1.add_remote_node(cluster)
+    raft_node_2.add_remote_node(cluster)
+    raft_node_3.add_remote_node(cluster)
 
     raft_node_2.close()
     raft_node_3.close()
 
-    raft_node_1._change_state(RaftState.FOLLOWER)
-    raft_node_1._voted_for = None
+    asyncio.create_task(raft_node_1.run())
 
-    await asyncio.sleep(ELECTION_TIMEOUT)
+    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1, to make sure the election timeout has been processed
 
-    assert raft_node_1._prev_state == RaftState.CANDIDATE
+    assert raft_node_1._prev_state == RaftState.FOLLOWER
     assert raft_node_1._state == RaftState.CANDIDATE
+    assert raft_node_1._term == 1, "+ 1 due to election timeout"
     assert raft_node_1._voted_for == 41
 
-    await asyncio.sleep(ELECTION_TIMEOUT)
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)  # + 0.1, to make sure the election timeout has been processed
 
+    # TODO: For some reason the election timeout is not processed, so the term does not increase???
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.CANDIDATE
+    assert raft_node_1._term == 2, "+ 1 due to election timeout"
     assert raft_node_1._voted_for == 41
 
+
+async def test_raft_node_fsm_3():
     _logger.info("================== TEST STAGE 8/9: node with higher term gets elected ==================")
 
-    raft_node_1.close()  # let's just reset, so we can start from scratch; should be able to do that in life as well :'(
+    raft_node_1.close()  # let's just reset, so we can start from scratch
     del raft_node_1
     del raft_node_2
     del raft_node_3
@@ -244,18 +289,21 @@ async def _unittest_raft_fsm() -> None:
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
 
-    await asyncio.sleep(ELECTION_TIMEOUT)
+    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1 is necesary to make sure the last term timeout is processed
 
     assert raft_node_1._prev_state == RaftState.LEADER
     assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 12, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
+    assert raft_node_2._term == 12, "+ 10 due to term timeout"
     assert raft_node_2._voted_for == 42
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_3._term == 12, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term
@@ -307,14 +355,17 @@ async def _unittest_raft_fsm() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 12, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
+    assert raft_node_2._term == 12, "+ 10 due to term timeout"
     assert raft_node_2._voted_for == 42
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_3._term == 12, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term

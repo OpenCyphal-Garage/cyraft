@@ -62,6 +62,9 @@ class RaftNode:
 
         self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
         self._term_timeout = TERM_TIMEOUT
+        # assert (
+        #     self._term_timeout < self._election_timeout / 2
+        # ), "Term timeout must be less than half of election timeout"
 
         self._cluster: typing.List[int] = []
         self._request_vote_clients: typing.List[pycyphal.application.Client] = []
@@ -282,9 +285,9 @@ class RaftNode:
             self._change_state(RaftState.LEADER)
         else:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
-            # If election fails, reset election timeout and try again
+            # If election fails, remain candidate
             self._change_state(RaftState.CANDIDATE)
-            self._reset_election_timeout()
+            # self._reset_election_timeout()
 
     async def _serve_append_entries(
         self,
@@ -584,6 +587,19 @@ class RaftNode:
             self._next_term_timeout = loop.time() + self._term_timeout
             self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
 
+        # Cancel the election timer if the node has become leader
+        if self._state == RaftState.LEADER:
+            if hasattr(self, "_election_timer"):
+                self._election_timer.cancel()
+
+        # Schedule a new election timer if the node is no longer a leader.
+        if self._prev_state == RaftState.LEADER and self._state != RaftState.LEADER:
+            loop = asyncio.get_event_loop()
+            self._next_election_timeout = loop.time() + self._election_timeout
+            self._election_timer = loop.call_at(
+                self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
+            )
+
     def _reset_election_timeout(self) -> None:
         """
         Once a term timeout is reached, another election callback is scheduled.
@@ -591,9 +607,15 @@ class RaftNode:
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
         self._next_election_timeout = loop.time() + self._election_timeout
-        self._election_timer.cancel()
+        if hasattr(self, "_election_timer"):
+            self._election_timer.cancel()
         self._election_timer = loop.call_at(
             self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
+        )
+        _logger.info(
+            c["raft_logic"] + "Node ID: %d -- Election timeout set to %f" + c["end_color"],
+            self._node.id,
+            self._next_election_timeout,
         )
 
     def _reset_term_timeout(self) -> None:
@@ -653,11 +675,12 @@ class RaftNode:
 
         loop = asyncio.get_event_loop()
 
-        # Schedule election timeout
-        self._next_election_timeout = loop.time() + self._election_timeout
-        self._election_timer = loop.call_at(
-            self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
-        )
+        # Schedule election timeout (if follower or candidate)
+        if self._state == RaftState.FOLLOWER or self._state == RaftState.CANDIDATE:
+            self._next_election_timeout = loop.time() + self._election_timeout
+            self._election_timer = loop.call_at(
+                self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
+            )
 
         # Schedule term timeout (only for leader)
         if self._state == RaftState.LEADER:
@@ -668,11 +691,13 @@ class RaftNode:
         """
         Cancel the timers and close the node.
         """
-        self._election_timer.cancel()
-        assert self._election_timer.cancelled()
+        if hasattr(self, "_election_timer"):
+            self._election_timer.cancel()
+            assert self._election_timer.cancelled()
         try:
-            self._term_timer.cancel()
-            assert self._term_timer.cancelled()
+            if hasattr(self, "_term_timer"):
+                self._term_timer.cancel()
+                assert self._term_timer.cancelled()
         except AttributeError:  # This just means it was a follower/candidate
             pass
         self._node.close()

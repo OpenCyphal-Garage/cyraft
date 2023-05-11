@@ -45,15 +45,16 @@ Questions:
 - `cyraft/node.py`:
   - how to close properly? (fixed when running a single test, however still happens when running multiple)
 - `tests/leader_election.py`:
-  - difference of 1 term between node is not enough to determine who gets elected first
+  - [x] difference of 1 term between node is not enough to determine who gets elected first (-> tested in raft_leader_election, test stage 8/9)
+  - [ ] Some strange error prinouts in test stage 10/11
 
 Code improvements:
-- currently not using network to send requests, fix this
+- [x] currently not using network to send requests, fix this
   - https://pycyphal.readthedocs.io/en/stable/api/pycyphal.application.html#rpc-service-clients-and-servers
   - in `_send_heartbeat`: there should be some timeout if node doesn't respond
-- election and term timeouts can be done more cleanly
-  - watchdog timer, kicking the dog
-- move internal variables into RaftState (for example, only leader should have a term it is able to update)
+- [x] election and term timeouts can be done more cleanly
+- [ ] move internal variables into RaftState (for example, only leader should have a term it is able to update)
+  - Maybe not necessary? It's pretty clean as currently implemented I think.
 
 ## Setup
 
