@@ -195,7 +195,7 @@ async def _unittest_raft_fsm_1() -> None:
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    asyncio.sleep(1)
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_2():
@@ -242,18 +242,15 @@ async def _unittest_raft_fsm_2():
     assert raft_node_1._term == 1, "+ 1 due to election timeout"
     assert raft_node_1._voted_for == 41
 
-    await asyncio.sleep(ELECTION_TIMEOUT + 1)  # + 0.1, to make sure the election timeout has been processed
+    await asyncio.sleep(TERM_TIMEOUT + 2)  # here an undefined number of election timeouts will be processed
 
-    # TODO: For some reason the election timeout is not processed, so the term does not increase???
-    assert raft_node_1._prev_state == RaftState.FOLLOWER
+    assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.CANDIDATE
-    assert raft_node_1._term == 2, "+ 1 due to election timeout"
+    assert raft_node_1._term > 1, "+ x due to election timeout"
     assert raft_node_1._voted_for == 41
 
-    assert False
-
     raft_node_1.close()
-    asyncio.sleep(1)
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_3():
@@ -325,7 +322,7 @@ async def _unittest_raft_fsm_3():
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    asyncio.sleep(1)
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_4():
@@ -399,7 +396,7 @@ async def _unittest_raft_fsm_4():
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    asyncio.sleep(1)
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_5():
@@ -449,7 +446,7 @@ async def _unittest_raft_fsm_5():
 
     await asyncio.sleep(ELECTION_TIMEOUT + 0.1)
 
-    assert raft_node_1._prev_state == RaftState.FOLLOWER
+    assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.FOLLOWER
     assert raft_node_1._term == 2, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
@@ -470,4 +467,4 @@ async def _unittest_raft_fsm_5():
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    asyncio.sleep(1)
+    await asyncio.sleep(1)

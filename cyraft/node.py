@@ -245,6 +245,16 @@ class RaftNode:
                 _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
                 return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
+        _logger.info(
+            c["request_vote"] + "Node ID: %d -- Request vote request denied (unknown reason)" + c["end_color"],
+            self._node.id,
+        )
+        _logger.info(
+            c["request_vote"] + "Node ID: %d -- Current term: %d, Request term: %d" + c["end_color"],
+            self._node.id,
+            self._term,
+            request.term,
+        )
         assert False, "Should not reach here!"
 
     async def _start_election(self) -> None:
@@ -301,9 +311,11 @@ class RaftNode:
             self._change_state(RaftState.LEADER)
         else:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
-            # If election fails, go back to follower (retry election after)
-            self._change_state(RaftState.FOLLOWER)
-            # self._reset_election_timeout()
+            # If election fails, wait one term , if voted_for == None, start another election
+            await asyncio.sleep(self._term_timeout)
+            if self._voted_for is None or self._voted_for == self._node.id:
+                self._change_state(RaftState.CANDIDATE)
+                await self._start_election()
 
     async def _serve_append_entries(
         self,
