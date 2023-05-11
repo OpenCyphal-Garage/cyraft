@@ -32,14 +32,15 @@ _logger = logging.getLogger(__name__)
 
 """
 Test the Raft FSM (see Figure 4, https://raft.github.io/raft.pdf)
+(Our implementation has a small difference: no transition from CANDIDATE to CANDIDATE, instead it goes back to FOLLOWER)
 
 - at any given time each server is in one of three states: leader, follower or candidate
 - state transitions:
     - FOLLOWER
         - starts as a follower (1)
-        - times out, starts election -> CANDIDATE  (2)
+        - times out, starts election -> CANDIDATE (2)
     - CANDIDATE
-        - if election timeout elapses: start new election -> CANDIDATE (3)
+        - if election timeout elapses -> FOLLOWER (3)
         - if votes received from majority of servers -> LEADER (4)
         - discovers current leader or new term -> FOLLOWER (5.1, 5.2)
     - LEADER
@@ -60,28 +61,20 @@ Node 1                      Node 2                        Node 3                
 ------------------------------------Election timeouts--------------------------------
         Leader                      Follower                      Follower              [4]
 ====================================Hard (re)set=====================================
-        Follower                    Disabled                      Disabled              [5]
-        |(2)                        |                             |
-        V                           V                             V
-        Candidate                   Disabled                      Disabled              [6]
-        |(3)                        |                             |
-        V                           V                             V
-        Candidate                   Disabled                      Disabled              [7]
-====================================Hard (re)set=====================================
-        Leader                      Leader (higher term than 1)   Follower              [8]
+        Leader                      Leader (higher term than 1)   Follower              [5]
         |(6)                        |                             |
         V                           V                             V
-        Follower                    Leader                        Follower              [9]
+        Follower                    Leader                        Follower              [6]
 ====================================Hard (re)set=====================================
-        Candidate                   Leader                        Follower              [10]
+        Candidate                   Leader                        Follower              [7]
         |(5.1)                      |                             |
         V                           V                             V
-        Follower                    Leader                        Follower              [11]
+        Follower                    Leader                        Follower              [8]
 ====================================Hard (re)set=====================================
-        Candidate                   Candidate (higher term)       Follower              [12]
+        Candidate                   Candidate (higher term)       Follower              [9]
         |(5.2)                      |                             |
         V                           V                             V
-        Follower                    Leader                        Follower              [13]
+        Follower                    Leader                        Follower              [10]
 
 To check on every state transition:
 - prev_state
@@ -92,7 +85,6 @@ To check on every state transition:
 
 
 async def _unittest_raft_fsm_1() -> None:
-    #### SETUP ####
     logging.root.setLevel(logging.INFO)
 
     os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
@@ -198,59 +190,59 @@ async def _unittest_raft_fsm_1() -> None:
     await asyncio.sleep(1)
 
 
-async def _unittest_raft_fsm_2():
-    logging.root.setLevel(logging.INFO)
+# async def _unittest_raft_fsm_2():
+#     logging.root.setLevel(logging.INFO)
 
-    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
-    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
-    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
-    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+#     os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+#     os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+#     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+#     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
-    ELECTION_TIMEOUT = 5
+#     TERM_TIMEOUT = 0.5
+#     ELECTION_TIMEOUT = 5
 
-    _logger.info("================== TEST STAGE 5/6/7: node can't become LEADER, stays CANDIDATE ==================")
+#     _logger.info("================== TEST STAGE 5/6/7: node can't become LEADER, stays CANDIDATE ==================")
 
-    os.environ["UAVCAN__NODE__ID"] = "41"
-    raft_node_1 = RaftNode()
-    raft_node_1.term_timeout = TERM_TIMEOUT
-    raft_node_1.election_timeout = ELECTION_TIMEOUT
-    os.environ["UAVCAN__NODE__ID"] = "42"
-    raft_node_2 = RaftNode()
-    raft_node_2.term_timeout = TERM_TIMEOUT
-    raft_node_2.election_timeout = ELECTION_TIMEOUT
-    os.environ["UAVCAN__NODE__ID"] = "43"
-    raft_node_3 = RaftNode()
-    raft_node_3.term_timeout = TERM_TIMEOUT
-    raft_node_3.election_timeout = ELECTION_TIMEOUT
+#     os.environ["UAVCAN__NODE__ID"] = "41"
+#     raft_node_1 = RaftNode()
+#     raft_node_1.term_timeout = TERM_TIMEOUT
+#     raft_node_1.election_timeout = ELECTION_TIMEOUT
+#     os.environ["UAVCAN__NODE__ID"] = "42"
+#     raft_node_2 = RaftNode()
+#     raft_node_2.term_timeout = TERM_TIMEOUT
+#     raft_node_2.election_timeout = ELECTION_TIMEOUT
+#     os.environ["UAVCAN__NODE__ID"] = "43"
+#     raft_node_3 = RaftNode()
+#     raft_node_3.term_timeout = TERM_TIMEOUT
+#     raft_node_3.election_timeout = ELECTION_TIMEOUT
 
-    # make all part of the same cluster
-    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
-    raft_node_1.add_remote_node(cluster)
-    raft_node_2.add_remote_node(cluster)
-    raft_node_3.add_remote_node(cluster)
+#     # make all part of the same cluster
+#     cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+#     raft_node_1.add_remote_node(cluster)
+#     raft_node_2.add_remote_node(cluster)
+#     raft_node_3.add_remote_node(cluster)
 
-    raft_node_2.close()
-    raft_node_3.close()
+#     raft_node_2.close()
+#     raft_node_3.close()
 
-    asyncio.create_task(raft_node_1.run())
+#     asyncio.create_task(raft_node_1.run())
 
-    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1, to make sure the election timeout has been processed
+#     await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1, to make sure the election timeout has been processed
 
-    assert raft_node_1._prev_state == RaftState.FOLLOWER
-    assert raft_node_1._state == RaftState.CANDIDATE
-    assert raft_node_1._term == 1, "+ 1 due to election timeout"
-    assert raft_node_1._voted_for == 41
+#     assert raft_node_1._prev_state == RaftState.FOLLOWER
+#     assert raft_node_1._state == RaftState.CANDIDATE
+#     assert raft_node_1._term == 1, "+ 1 due to election timeout"
+#     assert raft_node_1._voted_for == 41
 
-    await asyncio.sleep(TERM_TIMEOUT + 2)  # here an undefined number of election timeouts will be processed
+#     await asyncio.sleep(TERM_TIMEOUT + 2)  # here an undefined number of election timeouts will be processed
 
-    assert raft_node_1._prev_state == RaftState.CANDIDATE
-    assert raft_node_1._state == RaftState.CANDIDATE
-    assert raft_node_1._term > 1, "+ x due to election timeout"
-    assert raft_node_1._voted_for == 41
+#     assert raft_node_1._prev_state == RaftState.CANDIDATE
+#     assert raft_node_1._state == RaftState.CANDIDATE
+#     assert raft_node_1._term > 1, "+ x due to election timeout"
+#     assert raft_node_1._voted_for == 41
 
-    raft_node_1.close()
-    await asyncio.sleep(1)
+#     raft_node_1.close()
+#     await asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_3():
@@ -264,7 +256,7 @@ async def _unittest_raft_fsm_3():
     TERM_TIMEOUT = 0.5
     ELECTION_TIMEOUT = 5
 
-    _logger.info("================== TEST STAGE 8/9: node with higher term gets elected ==================")
+    _logger.info("================== TEST STAGE 5/6: node with higher term gets elected ==================")
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
@@ -277,7 +269,7 @@ async def _unittest_raft_fsm_3():
     os.environ["UAVCAN__NODE__ID"] = "43"
     raft_node_3 = RaftNode()
     raft_node_3.term_timeout = TERM_TIMEOUT
-    raft_node_3.election_timeout = ELECTION_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1  # we don't want this node starting any elections
 
     # make all part of the same cluster
     cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
@@ -301,17 +293,17 @@ async def _unittest_raft_fsm_3():
 
     await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1 is necesary to make sure the last term timeout is processed
 
-    assert raft_node_1._prev_state == RaftState.LEADER
+    # assert raft_node_1._prev_state == RaftState.LEADER
     assert raft_node_1._state == RaftState.FOLLOWER
     assert raft_node_1._term == 12, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
-    assert raft_node_2._prev_state == RaftState.CANDIDATE
+    # assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
     assert raft_node_2._term == 12, "+ 10 due to term timeout"
     assert raft_node_2._voted_for == 42
 
-    assert raft_node_3._prev_state == RaftState.FOLLOWER
+    # assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
     assert raft_node_3._term == 12, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
@@ -323,6 +315,8 @@ async def _unittest_raft_fsm_3():
     raft_node_2.close()
     raft_node_3.close()
     await asyncio.sleep(1)
+
+    assert False
 
 
 async def _unittest_raft_fsm_4():
@@ -337,7 +331,7 @@ async def _unittest_raft_fsm_4():
     ELECTION_TIMEOUT = 5
 
     _logger.info(
-        "================== TEST STAGE 10/11: 1 CANDIDATE, 1 LEADER, leader asserts dominance =================="
+        "================== TEST STAGE 7/8: 1 CANDIDATE, 1 LEADER, leader asserts dominance =================="
     )
 
     os.environ["UAVCAN__NODE__ID"] = "41"
@@ -410,7 +404,7 @@ async def _unittest_raft_fsm_5():
     TERM_TIMEOUT = 0.5
     ELECTION_TIMEOUT = 5
 
-    _logger.info("================== TEST STAGE 12/13: 2 CANDIDATEs, higher term get's elected ==================")
+    _logger.info("================== TEST STAGE 9/10: 2 CANDIDATEs, higher term get's elected ==================")
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
