@@ -192,7 +192,10 @@ async def _unittest_raft_fsm_1() -> None:
     assert raft_node_1._term >= raft_node_2._term
     assert raft_node_1._term >= raft_node_3._term
 
-    assert False
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_2():
@@ -242,10 +245,15 @@ async def _unittest_raft_fsm_2():
     await asyncio.sleep(ELECTION_TIMEOUT + 1)  # + 0.1, to make sure the election timeout has been processed
 
     # TODO: For some reason the election timeout is not processed, so the term does not increase???
-    assert raft_node_1._prev_state == RaftState.CANDIDATE
+    assert raft_node_1._prev_state == RaftState.FOLLOWER
     assert raft_node_1._state == RaftState.CANDIDATE
     assert raft_node_1._term == 2, "+ 1 due to election timeout"
     assert raft_node_1._voted_for == 41
+
+    assert False
+
+    raft_node_1.close()
+    asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_3():
@@ -313,6 +321,11 @@ async def _unittest_raft_fsm_3():
 
     assert raft_node_2._term >= raft_node_1._term
     assert raft_node_2._term >= raft_node_3._term
+
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    asyncio.sleep(1)
 
 
 async def _unittest_raft_fsm_4():
@@ -382,3 +395,79 @@ async def _unittest_raft_fsm_4():
 
     assert raft_node_2._term >= raft_node_1._term
     assert raft_node_2._term >= raft_node_3._term
+
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    asyncio.sleep(1)
+
+
+async def _unittest_raft_fsm_5():
+    logging.root.setLevel(logging.INFO)
+
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.5
+    ELECTION_TIMEOUT = 5
+
+    _logger.info("================== TEST STAGE 12/13: 2 CANDIDATEs, higher term get's elected ==================")
+
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node_1 = RaftNode()
+    raft_node_1.term_timeout = TERM_TIMEOUT
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.term_timeout = TERM_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "43"
+    raft_node_3 = RaftNode()
+    raft_node_3.term_timeout = TERM_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT
+
+    # make all part of the same cluster
+    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+    raft_node_1.add_remote_node(cluster)
+    raft_node_2.add_remote_node(cluster)
+    raft_node_3.add_remote_node(cluster)
+
+    # node 1 is CANDIDATE, node 2 is LEADER
+    raft_node_1._change_state(RaftState.CANDIDATE)
+    raft_node_1._voted_for = 41
+    raft_node_2._change_state(RaftState.CANDIDATE)
+    raft_node_2._voted_for = 42
+    raft_node_2._term = 1
+    raft_node_3._change_state(RaftState.FOLLOWER)
+    raft_node_3._voted_for = 42
+
+    asyncio.create_task(raft_node_1.run())
+    asyncio.create_task(raft_node_2.run())
+    asyncio.create_task(raft_node_3.run())
+
+    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)
+
+    assert raft_node_1._prev_state == RaftState.FOLLOWER
+    assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 2, "received heartbeat from LEADER"
+    assert raft_node_1._voted_for == 42
+
+    assert raft_node_2._prev_state == RaftState.CANDIDATE
+    assert raft_node_2._state == RaftState.LEADER
+    assert raft_node_2._term == 2, "+ 1 due to election timeout"
+    assert raft_node_2._voted_for == 42
+
+    assert raft_node_3._prev_state == RaftState.FOLLOWER
+    assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_3._term == 2, "received heartbeat from LEADER"
+    assert raft_node_3._voted_for == 42
+
+    assert raft_node_2._term >= raft_node_1._term
+    assert raft_node_2._term >= raft_node_3._term
+
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    asyncio.sleep(1)

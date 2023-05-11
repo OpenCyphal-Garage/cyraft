@@ -229,6 +229,22 @@ class RaftNode:
                 _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
                 return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
+        # If CANDIDATE and remote CANDIDATE's term is greater/equal than self._term, then step down and grant vote
+        elif self._state == RaftState.CANDIDATE and request.term >= self._term:
+            # log comparison
+            if self._log[request.last_log_index].term == request.last_log_term:
+                _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
+                self._state = RaftState.FOLLOWER
+                self._voted_for = client_node_id
+                self._term = request.term
+                return sirius_cyber_corp.RequestVote_1.Response(
+                    term=self._term,
+                    vote_granted=True,
+                )
+            else:
+                _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
+                return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
+
         assert False, "Should not reach here!"
 
     async def _start_election(self) -> None:
@@ -285,8 +301,8 @@ class RaftNode:
             self._change_state(RaftState.LEADER)
         else:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
-            # If election fails, remain candidate
-            self._change_state(RaftState.CANDIDATE)
+            # If election fails, go back to follower (retry election after)
+            self._change_state(RaftState.FOLLOWER)
             # self._reset_election_timeout()
 
     async def _serve_append_entries(
@@ -694,10 +710,7 @@ class RaftNode:
         if hasattr(self, "_election_timer"):
             self._election_timer.cancel()
             assert self._election_timer.cancelled()
-        try:
-            if hasattr(self, "_term_timer"):
-                self._term_timer.cancel()
-                assert self._term_timer.cancelled()
-        except AttributeError:  # This just means it was a follower/candidate
-            pass
+        if hasattr(self, "_term_timer"):
+            self._term_timer.cancel()
+            assert self._term_timer.cancelled()
         self._node.close()
