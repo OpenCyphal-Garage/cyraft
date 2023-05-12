@@ -205,7 +205,7 @@ class RaftNode:
         """
         # Reply false if term < self._term (§5.1)
         # (or if already voted for another candidate in this term)
-        if request.term < self._term or (self._voted_for is not None and request.term == self._term):
+        if request.term < self._term or (self._voted_for is not None):
             _logger.info(
                 c["request_vote"]
                 + "Request vote request denied (term < self._term or already voted for another candidate in this term)"
@@ -352,8 +352,7 @@ class RaftNode:
                         metadata.client_node_id,
                     )
                     self._voted_for = metadata.client_node_id
-                self._change_state(RaftState.FOLLOWER)
-                self._reset_election_timeout()
+                self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
                 self._term = request.term  # update term
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
@@ -619,8 +618,8 @@ class RaftNode:
             # ), "Invalid state change 1"
             # Cancel the term timeout (if it exists), and schedule a new election timeout.
             if hasattr(self, "_term_timer"):
-                self._term_timer.cancel()
-            self._reset_election_timeout()
+                self._term_timer.cancel()  # FOLLOWER should not have term timer
+            self._reset_election_timeout()  # FOLLOWER should have election timer
         elif self._state == RaftState.CANDIDATE:
             assert self._prev_state == RaftState.FOLLOWER, "Invalid state change 2"
             # Cancel the term timeout (if it exists), and cancel the election timeout (if it exists).
@@ -664,7 +663,8 @@ class RaftNode:
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
         self._next_term_timeout = loop.time() + self._term_timeout
-        self._term_timer.cancel()
+        if hasattr(self, "_term_timer"):
+            self._term_timer.cancel()
         self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
 
     async def _on_election_timeout(self) -> None:
