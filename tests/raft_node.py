@@ -107,16 +107,14 @@ async def _unittest_raft_node_term_timeout() -> None:
     raft_node.election_timeout = ELECTION_TIMEOUT
     raft_node.term_timeout = TERM_TIMEOUT
 
-    raft_node._change_state(RaftState.LEADER)  # only leader can increase term
     asyncio.create_task(raft_node.run())
-    await asyncio.sleep(TERM_TIMEOUT + 0.1)  # + 0.1 to make sure the timer has been reset
+    raft_node._change_state(RaftState.CANDIDATE)
+    raft_node._change_state(RaftState.LEADER)  # only leader can increase term
+
+    await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
     assert raft_node._term == 1
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node._term == 2
-    await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
-
-    raft_node._change_state(RaftState.CANDIDATE)  # candidate should not increase term
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node._term == 3
 

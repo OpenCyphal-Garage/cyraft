@@ -83,12 +83,12 @@ class RaftNode:
         )
 
         ## Volatile state on all servers
-        self._commit_index: int = 0
+        self._commit_index: int = 0  # index of highest log entry commited to log
         # self.last_applied: int = 0 # QUESTION: Is this even necessary? Do we have a "state machine"?
 
         ## Volatile state on leaders
-        self._next_index: typing.List[int] = []
-        self._match_index: typing.List[int] = []
+        self._next_index: typing.List[int] = []  # index of the next log entry to send to that server
+        self._match_index: typing.List[int] = []  # index of highest log entry known to be replicated on server
 
         ########################################
         #####       UAVCAN-specific        #####
@@ -229,22 +229,6 @@ class RaftNode:
                 _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
                 return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
-        # # If CANDIDATE and remote CANDIDATE's term is greater/equal than self._term, then step down and grant vote
-        # elif self._state == RaftState.CANDIDATE and request.term >= self._term:
-        #     # log comparison
-        #     if self._log[request.last_log_index].term == request.last_log_term:
-        #         _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
-        #         self._state = RaftState.FOLLOWER
-        #         self._voted_for = client_node_id
-        #         self._term = request.term
-        #         return sirius_cyber_corp.RequestVote_1.Response(
-        #             term=self._term,
-        #             vote_granted=True,
-        #         )
-        #     else:
-        #         _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
-        #         return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
-
         _logger.info(
             c["request_vote"] + "Node ID: %d -- Request vote request denied (unknown reason)" + c["end_color"],
             self._node.id,
@@ -262,7 +246,7 @@ class RaftNode:
         This method is used to start an election.
         It will send request vote to all the other nodes in the cluster.
         If the node receives a majority of votes, it will become the leader.
-        If not, it will reset the election timeout and become a follower.
+        If not, it will revert to follower state.
         """
         assert self._state == RaftState.CANDIDATE, "Election can only be started by a candidate"
 
@@ -459,7 +443,8 @@ class RaftNode:
 
     async def _send_heartbeat(self) -> None:
         """
-        This method is called periodically to send a heartbeat to all nodes in the cluster.
+        This method is called periodically (upon each term timeout by the leader) to send a heartbeat
+        to all nodes in the cluster.
         It can fail in one of the following ways:
         - if the remote node has a higher term, the leader must convert to a follower
         - if the remote node is behind, the leader must send the missing entries
@@ -600,7 +585,7 @@ class RaftNode:
         FOLLOWER:
             - Term timer: NO
             - Election timer: YES
-        CANDIDATE:
+        CANDIDATE: (either wins election, becomes LEADER; or loses election, becomes FOLLOWER)
             - Term timer: NO
             - Election timer: NO
         LEADER:
@@ -647,7 +632,7 @@ class RaftNode:
         if hasattr(self, "_election_timer"):
             self._election_timer.cancel()
         self._election_timer = loop.call_at(
-            self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
+            self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
         _logger.info(
             c["raft_logic"] + "Node ID: %d -- Election timeout set to %f" + c["end_color"],
@@ -665,17 +650,20 @@ class RaftNode:
         self._next_term_timeout = loop.time() + self._term_timeout
         if hasattr(self, "_term_timer"):
             self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
+        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
 
     async def _on_election_timeout(self) -> None:
         """
         This function is called upon election timeout.
         The node starts an election and then restarts the election timeout.
         """
-        assert self._state == RaftState.FOLLOWER, "Only followers have an election timeout"
-        _logger.info(c["raft_logic"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
-        self._change_state(RaftState.CANDIDATE)
-        await self._start_election()
+        try:
+            assert self._state == RaftState.FOLLOWER, "Only followers have an election timeout"
+            _logger.info(c["raft_logic"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
+            self._change_state(RaftState.CANDIDATE)
+            await self._start_election()
+        except asyncio.CancelledError:
+            pass
 
     async def _on_term_timeout(self) -> None:
         """
@@ -702,26 +690,38 @@ class RaftNode:
 
         loop = asyncio.get_event_loop()
 
+        # Scheduling coroutine to be run using call_at requires using lambda, the why is explained here:
+        # https://github.com/OpenCyphal-Garage/cyraft/issues/8#issuecomment-1546868666
+        # https://stackoverflow.com/questions/48235690/passing-a-coroutine-to-abstracteventloop-call-later
+
         # Schedule election timeout (if follower or candidate)
         if self._state == RaftState.FOLLOWER:
             self._next_election_timeout = loop.time() + self._election_timeout
-            self._election_timer = loop.call_at(
-                self._next_election_timeout, asyncio.ensure_future, self._on_election_timeout()
+            self._term_timer = loop.call_at(
+                self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
             )
 
         # Schedule term timeout (only for leader)
         if self._state == RaftState.LEADER:
             self._next_term_timeout = loop.time() + self._term_timeout
-            self._term_timer = loop.call_at(self._next_term_timeout, asyncio.ensure_future, self._on_term_timeout())
+            self._term_timer = loop.call_at(
+                self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout())
+            )
 
     def close(self) -> None:
         """
         Cancel the timers and close the node.
         """
         if hasattr(self, "_election_timer"):
-            self._election_timer.cancel()
+            try:
+                self._election_timer.cancel()
+            except asyncio.CancelledError:
+                pass
             assert self._election_timer.cancelled()
         if hasattr(self, "_term_timer"):
-            self._term_timer.cancel()
+            try:
+                self._term_timer.cancel()
+            except asyncio.CancelledError:
+                pass
             assert self._term_timer.cancelled()
         self._node.close()

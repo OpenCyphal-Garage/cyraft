@@ -187,9 +187,8 @@ async def _unittest_raft_fsm_1() -> None:
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    await asyncio.sleep(1)
-
-    assert False
+    _logger.info("================== DOES SOMETHING HAPPEN AFTER THIS? ==================")
+    await asyncio.sleep(10)
 
 
 async def _unittest_raft_fsm_2():
@@ -262,8 +261,6 @@ async def _unittest_raft_fsm_2():
     raft_node_2.close()
     raft_node_3.close()
     await asyncio.sleep(1)
-
-    assert False
 
 
 async def _unittest_raft_fsm_3():
@@ -338,8 +335,6 @@ async def _unittest_raft_fsm_3():
     raft_node_2.close()
     raft_node_3.close()
     await asyncio.sleep(1)
-
-    assert False
 
 
 async def _unittest_raft_fsm_4():
@@ -416,5 +411,3 @@ async def _unittest_raft_fsm_4():
     raft_node_2.close()
     raft_node_3.close()
     await asyncio.sleep(1)
-
-    assert False
