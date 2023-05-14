@@ -2,7 +2,7 @@
 
 The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating [named topics](http://wiki.ros.org/Topics) into pycyphal.
 
-This feature is significant because it enables Cyphal to serve as a communication interface between PX4 and ROS in the future.
+This feature is significant because it enables Cyphal to serve as a communication layer between PX4 and ROS in the future.
 
 (See [UAVCAN as a middleware for ROS](https://forum.opencyphal.org/t/an-exploratory-study-uavcan-as-a-middleware-for-ros/872))
 
@@ -17,8 +17,6 @@ This feature is significant because it enables Cyphal to serve as a communicatio
 
 ## TODO
 
-30/04: Next step is finishing `Leader election` testing, then `Log replication`
-
 - [x] Finish study pycyphal application layer
 - [ ] `demo_cyraft.py`
     - [x] Add instructions on how to interact with request_vote_rpc using `yakut`
@@ -31,11 +29,12 @@ This feature is significant because it enables Cyphal to serve as a communicatio
       - [x] _unittest_raft_node_request_vote_rpc
       - [x] _unittest_raft_node_append_entries_rpc
     - [ ] tests
-      - [ ] `leader_election.py`
+      - [x] `leader_election.py`
       - [ ] `log_replication.py`
-    - [ ] Add orchestration so there's 3 nodes running simultanously
-    - [ ] *Leader election*
-    - [ ] *Log Replication*
+    - [ ] Test using orchestration so there's 3 nodes running simultanously
+      - [ ] use yakut to send AppendEntries requests
+    - [ ] [Add name resolution service](https://github.com/OpenCyphal-Garage/cyraft/issues/3)
+    - [ ] [Monitor the network for online nodes](https://github.com/OpenCyphal-Garage/cyraft/issues/4)
   - [ ] `.env-variables` and `my_env.sh` should be combined?
   - [ ] Implement Github CI
 -  [x] Refactor code into `cyraft`
@@ -43,10 +42,10 @@ This feature is significant because it enables Cyphal to serve as a communicatio
 Questions:
 
 - `cyraft/node.py`:
-  - how to close properly? (fixed when running a single test, however still happens when running multiple)
+  - [x] how to close properly? (fixed when running a single test, however still happens when running multiple)
 - `tests/leader_election.py`:
   - [x] difference of 1 term between node is not enough to determine who gets elected first (-> tested in raft_leader_election, test stage 8/9)
-  - [ ] Some strange error prinouts in test stage 10/11
+  - [x] Some strange error prinouts in test stage 10/11
 
 Code improvements:
 - [x] currently not using network to send requests, fix this
