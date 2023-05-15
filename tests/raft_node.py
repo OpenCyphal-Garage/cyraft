@@ -46,7 +46,7 @@ async def _unittest_raft_node_init() -> None:
     assert raft_node._commit_index == 0
 
     assert raft_node._next_index == []  # no remote nodes
-    assert raft_node._match_index == []
+    # assert raft_node._match_index == []
 
     # Adding a single node (same node id, so should not be added)
     raft_node.add_remote_node(41)
@@ -54,7 +54,7 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 0
     assert len(raft_node._append_entries_clients) == 0
     assert raft_node._next_index == []
-    assert raft_node._match_index == []
+    # assert raft_node._match_index == []
 
     # Adding a single node (different node id, so should be added)
     raft_node.add_remote_node(42)
@@ -63,7 +63,7 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 1
     assert len(raft_node._append_entries_clients) == 1
     assert raft_node._next_index == [1]
-    assert raft_node._match_index == [0]
+    # assert raft_node._match_index == [0]
 
     # Removing a single node (should become empty cluster)
     raft_node.remove_remote_node(42)
@@ -71,7 +71,7 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 0
     assert len(raft_node._append_entries_clients) == 0
     assert raft_node._next_index == []
-    assert raft_node._match_index == []
+    # assert raft_node._match_index == []
 
     # Adding multiple nodes
     raft_node.add_remote_node([42, 43])
@@ -81,7 +81,7 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 2
     assert len(raft_node._append_entries_clients) == 2
     assert raft_node._next_index == [1, 1]
-    assert raft_node._match_index == [0, 0]
+    # assert raft_node._match_index == [0, 0]
 
     # Remove one of the nodes, make sure other one is still there
     raft_node.remove_remote_node(42)
@@ -90,7 +90,7 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 1
     assert len(raft_node._append_entries_clients) == 1
     assert raft_node._next_index == [1]
-    assert raft_node._match_index == [0]
+    # assert raft_node._match_index == [0]
 
 
 async def _unittest_raft_node_term_timeout() -> None:

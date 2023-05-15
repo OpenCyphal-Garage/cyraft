@@ -88,7 +88,7 @@ class RaftNode:
 
         ## Volatile state on leaders
         self._next_index: typing.List[int] = []  # index of the next log entry to send to that server
-        self._match_index: typing.List[int] = []  # index of highest log entry known to be replicated on server
+        # self._match_index: typing.List[int] = []  # index of highest log entry known to be replicated on server
 
         ########################################
         #####       UAVCAN-specific        #####
@@ -153,13 +153,13 @@ class RaftNode:
                 )
                 self._append_entries_clients.append(append_entries_client)
                 self._next_index.append(1)
-                self._match_index.append(0)
+                # self._match_index.append(0)
 
         total_nodes = len(self._cluster)
         assert len(self._request_vote_clients) == total_nodes
         assert len(self._append_entries_clients) == total_nodes
         assert len(self._next_index) == total_nodes
-        assert len(self._match_index) == total_nodes
+        # assert len(self._match_index) == total_nodes
 
     def remove_remote_node(self, remote_node_id: int) -> None:
         """
@@ -173,7 +173,7 @@ class RaftNode:
             self._request_vote_clients.pop(index)
             self._append_entries_clients.pop(index)
             self._next_index.pop(index)
-            self._match_index.pop(index)
+            # self._match_index.pop(index)
 
     async def _serve_request_vote(
         self,
@@ -441,128 +441,83 @@ class RaftNode:
         # Update current_term
         self._term = request.log_entry[0].term
 
-    async def _send_heartbeat(self) -> None:
+    async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
         This method is called periodically (upon each term timeout by the leader) to send a heartbeat
-        to all nodes in the cluster.
+        to a remote node (which has a complete log).
         It can fail in one of the following ways:
         - if the remote node has a higher term, the leader must convert to a follower
-        - if the remote node is behind, the leader must send the missing entries
+        - if the remote node is behind, the leader will send sequentially decreasing prev_log_index
+          and update self._next_index for that particular node.
         - if the remote node is unreachable, the leader must retry later
         """
-        # Send heartbeat to all other nodes
-        #   - if response is true, update next_index and match_index
-        #   - if response is false
-        #      - if response term is greater than current_term, convert to follower
-        #      - if term is equal to current_term, decrease prev_log_index, update next_index and retry
-        # TODO: If response is false, implement the case where the follower is behind and needs to catch up
 
         assert self._state == RaftState.LEADER, "Only the leader can send heartbeats"
 
-        # Send heartbeat to all other nodes
-        for remote_node_index, remote_client in enumerate(self._append_entries_clients):
-            remote_node_id = self._cluster[remote_node_index]
-            _logger.info(
-                c["raft_logic"] + "Node ID: %d -- Sending heartbeat to node %d" + c["end_color"],
-                self._node.id,
-                remote_node_id,
-            )
-            request = sirius_cyber_corp.AppendEntries_1.Request(
-                term=self._term,
-                prev_log_index=self._commit_index,
-                prev_log_term=self._log[self._commit_index].term,
-                log_entry=None,  # heartbeat has no log entry
-            )
-            _logger.info(
-                c["raft_logic"] + "Node ID: %d -- prev_log_index: %d, prev_log_term: %d" + c["end_color"],
-                self._node.id,
-                request.prev_log_index,
-                request.prev_log_term,
-            )
-
-            assert len(request.log_entry) == 0, "Heartbeat should not have a log entry"
-            response = await remote_client(request)  # metadata is filled out by the client
-            if response:
-                if response.success:
-                    _logger.info(
-                        c["raft_logic"] + "Node ID: %d -- Heartbeat to node %d successful" + c["end_color"],
-                        self._node.id,
-                        remote_node_id,
-                    )
-                else:
-                    if response.term > self._term:
-                        _logger.info(
-                            c["raft_logic"]
-                            + "Node ID: %d -- Heartbeat to node %d failed (remote term > local term)"
-                            + c["end_color"],
-                            self._node.id,
-                            remote_node_id,
-                        )
-                        self._change_state(RaftState.FOLLOWER)
-                        self._voted_for = None
-                        return
-                    elif response.term == self._term:
-                        _logger.info(
-                            c["raft_logic"]
-                            + "Node ID: %d -- Heartbeat to node %d failed (Log mismatch)"
-                            + c["end_color"],
-                            self._node.id,
-                            remote_node_id,
-                        )
-            else:
+        # Send heartbeat
+        remote_node_id = self._cluster[remote_node_index]
+        remote_client = self._append_entries_clients[remote_node_index]
+        _logger.info(
+            c["raft_logic"] + "Node ID: %d -- Sending heartbeat to node %d" + c["end_color"],
+            self._node.id,
+            remote_node_id,
+        )
+        prev_log_index = self._next_index[remote_node_index] - 1
+        prev_log_term = self._log[prev_log_index].term
+        request = sirius_cyber_corp.AppendEntries_1.Request(
+            term=self._term,
+            prev_log_index=prev_log_index,
+            prev_log_term=prev_log_term,
+            log_entry=None,  # heartbeat has no log entry
+        )
+        _logger.info(
+            c["raft_logic"] + "Node ID: %d -- prev_log_index: %d, prev_log_term: %d" + c["end_color"],
+            self._node.id,
+            request.prev_log_index,
+            request.prev_log_term,
+        )
+        assert len(request.log_entry) == 0, "Heartbeat should not have a log entry"
+        response = await remote_client(request)  # metadata is filled out by the client
+        if response:
+            if response.success:
                 _logger.info(
-                    c["raft_logic"] + "Node ID: %d -- Heartbeat to node %d failed (No response)" + c["end_color"],
+                    c["raft_logic"] + "Node ID: %d -- heartbeat to node %d was successful" + c["end_color"],
                     self._node.id,
                     remote_node_id,
                 )
-
-        # for index, remote_node in enumerate(self._cluster):
-        #     if remote_node._node.id == self._node.id:
-        #         self.last_message_timestamp = time.time()
-        #         self._next_index[index] = self._commit_index + 1
-        #     else:
-        #         prev_log_index = self._commit_index
-        #         while prev_log_index >= 0:
-        #             _logger.info(
-        #                 "Node ID: %d -- Sending heartbeat to node %d, prev_log_index: %d",
-        #                 self._node.id,
-        #                 remote_node._node.id,
-        #                 prev_log_index,
-        #             )
-        #             empty_topic_log = sirius_cyber_corp.LogEntry_1(
-        #                 term=self._term,
-        #                 entry=None,
-        #             )
-        #             request = sirius_cyber_corp.AppendEntries_1.Request(
-        #                 term=self._term,
-        #                 prev_log_index=prev_log_index,
-        #                 prev_log_term=self._log[prev_log_index].term,
-        #                 log_entry=empty_topic_log,
-        #             )
-        #             metadata = pycyphal.presentation.ServiceRequestMetadata(
-        #                 client_node_id=self._node.id,  # leader's node id
-        #                 timestamp=time.time(),
-        #                 priority=0,
-        #                 transfer_id=0,
-        #             )
-        #             response = await remote_node._serve_append_entries(request, metadata)
-        #             if response.success:
-        #                 _logger.info("Node ID: %d -- Heartbeat successful", self._node.id)
-        #                 self._next_index[index] = prev_log_index + 1
-        #                 break
-        #             else:
-        #                 _logger.info("Node ID: %d -- Heartbeat failed", self._node.id)
-        #                 if response.term > self._term:
-        #                     _logger.info("Node ID: %d -- Term mismatch, converting to follower", self._node.id)
-        #                     # self._term = response.term
-        #                     self._prev_state = self._state
-        #                     _logger.info("Node ID: %d -- prev_state: %s", self._node.id, self._prev_state)
-        #                     self._state = RaftState.FOLLOWER
-        #                     self._voted_for = None
-        #                     return
-        #                 elif response.term == self._term:
-        #                     _logger.info("Incomplete log on remote node, decreasing prev_log_index")
-        #                     prev_log_index -= 1
+            else:
+                if response.term > self._term:
+                    _logger.info(
+                        c["raft_logic"]
+                        + "Node ID: %d -- heartbeat to node %d failed, converting to follower"
+                        + c["end_color"],
+                        self._node.id,
+                        remote_node_id,
+                    )
+                    self._change_state(RaftState.FOLLOWER)
+                    self._voted_for = None
+                    return
+                elif response.term == self._term:
+                    if self._state != RaftState.LEADER:
+                        # this check is to make sure we are still the leader
+                        # (which could have changed due a heartbeat from another leader, see _unittest_raft_fsm_2, stage 5/6)
+                        return
+                    _logger.info(
+                        c["raft_logic"] + "Node ID: %d -- heartbeat to node %d failed (Log mismatch)" + c["end_color"],
+                        self._node.id,
+                        remote_node_id,
+                    )
+                    # send a new heartbeat with a smaller prev_log_index
+                    self._next_index[remote_node_index] -= 1
+                    await self._send_heartbeat(remote_node_index)
+                else:
+                    pass  # do nothing, we are no longer the leader
+        else:
+            _logger.info(
+                c["raft_logic"] + "Node ID: %d -- heartbeat to node %d failed (unreachable)" + c["end_color"],
+                self._node.id,
+                remote_node_id,
+            )
 
     @staticmethod
     async def _serve_execute_command(
@@ -668,7 +623,9 @@ class RaftNode:
     async def _on_term_timeout(self) -> None:
         """
         This function is called upon term timeout.
-        If the node is a leader, it will send a heartbeat to all nodes in the cluster.
+        If the node is a leader, it will do either of the following:
+        - if the remote node log is up to date, it will send a heartbeat
+        - if the remote node log is not up to date, it will send an append entries request
         """
         _logger.info(
             c["raft_logic"] + "Node ID: %d -- Term timeout reached, new term: %d" + c["end_color"],
@@ -678,7 +635,23 @@ class RaftNode:
         assert self._state == RaftState.LEADER, "Only leaders have a term timeout"
         self._term += 1
         self._reset_term_timeout()
-        await self._send_heartbeat()  # send heartbeat to all nodes in cluster (to update term)
+        for remote_node_index, remote_next_index in enumerate(self._next_index):
+            if self._state != RaftState.LEADER:
+                # if the node is no longer a leader, stop sending heartbeats
+                break
+            if self._commit_index + 1 == remote_next_index:  # remote log is up to date
+                _logger.info(
+                    c["raft_logic"]
+                    + "Node ID: %d -- Remote node %d log is up to date, sending heartbeat"
+                    + c["end_color"],
+                    self._node.id,
+                    self._cluster[remote_node_index],
+                )
+                await self._send_heartbeat(remote_node_index)
+            else:  # remote log is not up to date
+                pass
+                # await self._send_append_entries(remote_next_index)
+        # await self._send_heartbeat()  # send heartbeat to all nodes in cluster (to update term)
 
     async def run(self) -> None:
         """
