@@ -394,6 +394,8 @@ class RaftNode:
                     self._node.id,
                     log_index + 1,
                 )
+                number_of_entries_to_delete = len(self._log) - (log_index + 1)
+                self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
                 del self._log[log_index + 1 :]
                 self._commit_index = log_index
                 break
@@ -438,8 +440,10 @@ class RaftNode:
         if request.leader_commit > self._commit_index:
             self._commit_index = min(request.leader_commit, new_index)
 
-        # Update current_term
-        self._term = request.log_entry[0].term
+        # Update current_term (if follower)
+        if self._state == RaftState.FOLLOWER:
+            self._term = request.log_entry[0].term
+        # self._term = request.log_entry[0].term
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
