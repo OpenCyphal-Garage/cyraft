@@ -104,14 +104,14 @@ async def _unittest_raft_log() -> None:
     await asyncio.sleep(TERM_TIMEOUT + 1)
 
     # check if the new entry is replicated in the leader node
-    assert raft_node_1._log[1].term == request.term
+    assert raft_node_1._log[1].term == new_entry.term
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 1
 
     # check if the new entry is replicated in the follower nodes
-    assert raft_node_1._log[2].term == request.term
-    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_1"
-    assert raft_node_1._log[2].entry.value == 1
-    assert raft_node_1._log[3].term == request.term
-    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_1"
-    assert raft_node_1._log[3].entry.value == 1
+    assert raft_node_1._log[1].term == new_entry.term
+    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_1._log[1].entry.value == 1
+    assert raft_node_1._log[1].term == new_entry.term
+    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_1._log[1].entry.value == 1

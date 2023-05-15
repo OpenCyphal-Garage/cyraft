@@ -519,6 +519,66 @@ class RaftNode:
                 remote_node_id,
             )
 
+    async def _send_append_entry(self, remote_node_index: int):
+        """
+        This method is called whenever the remote node log needs to be appended.
+        It works a very similar manner to _send_hearbeat, except that it sends a single log entry.
+        """
+
+        assert self._state == RaftState.LEADER, "Only the leader can request append entry"
+
+        _logger.info(
+            c["raft_logic"]
+            + "Node ID: %d -- Remote node %d log is not up to date, sending append entries request"
+            + c["end_color"],
+            self._node.id,
+            self._cluster[remote_node_index],
+        )
+        remote_next_index = self._next_index[remote_node_index]
+        remote_client = self._append_entries_clients[remote_node_index]
+        request = sirius_cyber_corp.AppendEntries_1.Request(
+            term=self._term,
+            prev_log_index=remote_next_index - 1,
+            prev_log_term=self._log[remote_next_index - 1].term,
+            log_entry=self._log[remote_next_index],
+        )
+        assert len(request.log_entry) == 1, "Append entry should have a (single) log entry"
+        response = await remote_client(request)  # metadata is filled out by the client
+        if response:
+            if response.success:
+                _logger.info(
+                    c["raft_logic"] + "Node ID: %d -- Remote node %d log updated" + c["end_color"],
+                    self._node.id,
+                    self._cluster[remote_node_index],
+                )
+                self._next_index[remote_node_index] += 1
+                # self._match_index[remote_node_index] += 1
+            else:
+                if response.term > self._term:
+                    _logger.info(
+                        c["raft_logic"]
+                        + "Node ID: %d -- Remote node %d log update failed, converting to follower"
+                        + c["end_color"],
+                        self._node.id,
+                        self._cluster[remote_node_index],
+                    )
+                    self._change_state(RaftState.FOLLOWER)
+                    self._voted_for = None
+                    return
+                elif response.term == self._term:
+                    if self._state != RaftState.LEADER:
+                        return
+                    self._next_index[remote_node_index] -= 1
+                    await self._send_append_entry(remote_node_index)
+                else:
+                    pass
+        else:
+            _logger.info(
+                c["raft_logic"] + "Node ID: %d -- Remote node %d log update failed (unreachable)" + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+
     @staticmethod
     async def _serve_execute_command(
         request: uavcan.node.ExecuteCommand_1.Request,
@@ -553,9 +613,6 @@ class RaftNode:
         _logger.info("Node ID: %d -- Changing state from %s to %s", self._node.id, self._prev_state, self._state)
 
         if self._state == RaftState.FOLLOWER:
-            # assert (
-            #     self._prev_state == RaftState.LEADER or self._prev_state == RaftState.CANDIDATE
-            # ), "Invalid state change 1"
             # Cancel the term timeout (if it exists), and schedule a new election timeout.
             if hasattr(self, "_term_timer"):
                 self._term_timer.cancel()  # FOLLOWER should not have term timer
@@ -589,11 +646,11 @@ class RaftNode:
         self._election_timer = loop.call_at(
             self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
-        _logger.info(
-            c["raft_logic"] + "Node ID: %d -- Election timeout set to %f" + c["end_color"],
-            self._node.id,
-            self._next_election_timeout,
-        )
+        # _logger.info(
+        #     c["raft_logic"] + "Node ID: %d -- Election timeout set to %f" + c["end_color"],
+        #     self._node.id,
+        #     self._next_election_timeout,
+        # )
 
     def _reset_term_timeout(self) -> None:
         """
@@ -648,10 +705,8 @@ class RaftNode:
                     self._cluster[remote_node_index],
                 )
                 await self._send_heartbeat(remote_node_index)
-            else:  # remote log is not up to date
-                pass
-                # await self._send_append_entries(remote_next_index)
-        # await self._send_heartbeat()  # send heartbeat to all nodes in cluster (to update term)
+            else:  # remote log is not up to date, send append entries request
+                await self._send_append_entry(remote_node_index)
 
     async def run(self) -> None:
         """
