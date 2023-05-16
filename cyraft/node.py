@@ -164,7 +164,7 @@ class RaftNode:
     def remove_remote_node(self, remote_node_id: int) -> None:
         """
         This method is used to remove a remote node from the cluster.
-        It also removes the corresponding clients for the remote node.
+        It also removes the corresponding clients.
         """
         if remote_node_id in self._cluster:
             _logger.info(c["raft_logic"] + f"Removing node {remote_node_id} from cluster" + c["end_color"])
@@ -440,10 +440,9 @@ class RaftNode:
         if request.leader_commit > self._commit_index:
             self._commit_index = min(request.leader_commit, new_index)
 
-        # Update current_term (if follower)
+        # Update current_term (if follower) (leaders will update their own term on timeout)
         if self._state == RaftState.FOLLOWER:
             self._term = request.log_entry[0].term
-        # self._term = request.log_entry[0].term
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
@@ -650,11 +649,6 @@ class RaftNode:
         self._election_timer = loop.call_at(
             self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
-        # _logger.info(
-        #     c["raft_logic"] + "Node ID: %d -- Election timeout set to %f" + c["end_color"],
-        #     self._node.id,
-        #     self._next_election_timeout,
-        # )
 
     def _reset_term_timeout(self) -> None:
         """
@@ -673,13 +667,10 @@ class RaftNode:
         This function is called upon election timeout.
         The node starts an election and then restarts the election timeout.
         """
-        try:
-            assert self._state == RaftState.FOLLOWER, "Only followers have an election timeout"
-            _logger.info(c["raft_logic"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
-            self._change_state(RaftState.CANDIDATE)
-            await self._start_election()
-        except asyncio.CancelledError:
-            pass
+        assert self._state == RaftState.FOLLOWER, "Only followers have an election timeout"
+        _logger.info(c["raft_logic"] + "Node ID: %d -- Election timeout reached" + c["end_color"], self._node.id)
+        self._change_state(RaftState.CANDIDATE)
+        await self._start_election()
 
     async def _on_term_timeout(self) -> None:
         """
@@ -745,15 +736,9 @@ class RaftNode:
         Cancel the timers and close the node.
         """
         if hasattr(self, "_election_timer"):
-            try:
-                self._election_timer.cancel()
-            except asyncio.CancelledError:
-                pass
+            self._election_timer.cancel()
             assert self._election_timer.cancelled()
         if hasattr(self, "_term_timer"):
-            try:
-                self._term_timer.cancel()
-            except asyncio.CancelledError:
-                pass
+            self._term_timer.cancel()
             assert self._term_timer.cancelled()
         self._node.close()

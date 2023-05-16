@@ -80,7 +80,7 @@ all nodes.
 """
 
 
-async def _unittest_raft_log() -> None:
+async def _unittest_raft_log_replication() -> None:
     logging.root.setLevel(logging.INFO)
 
     os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
@@ -587,3 +587,8 @@ async def _unittest_raft_log() -> None:
     assert raft_node_1._log[4].term == 10
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
+
+
+async def _unittest_raft_leader_changes() -> None:
+    # TODO: Test that log replication happens correctly if leadership changes
+    pass
