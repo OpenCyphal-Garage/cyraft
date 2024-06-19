@@ -99,7 +99,7 @@ Code improvements:
     source my_env.sh
     ```
 
-- Run the demo
+- Run the demo (**This does not work yet**)
 
     ```bash
     python3 demo/demo_cyraft.py
@@ -109,7 +109,6 @@ Code improvements:
     >   ```bash
     >   rm -rf ~/.pycyphal
     >   ```
-
 
 ## Diagrams
 
