@@ -66,15 +66,15 @@ Code improvements:
 - Clone repo
 
     ```bash
-    git clone https://github.com/maksimdrachov/cyraft_project
+    git clone git@github.com:OpenCyphal-Garage/cyraft.git
     ```
 
 - Virtual environment
 
     ```bash
     cd ~/cyraft
-    python3 -m venv env
-    source env/bin/activate
+    python3 -m venv .venv
+    source .venv/bin/activate
     ```
  
 - Install requirements (pycyphal)
@@ -85,8 +85,7 @@ Code improvements:
     ```
 
 -   ```bash
-    cd ~/cyraft/demo
-    git clone https://github.com/OpenCyphal/public_regulated_data_types
+    git submodule update --init --recursive
     ```
 
 -   ```bash
@@ -100,7 +99,7 @@ Code improvements:
     source my_env.sh
     ```
 
-- Run the demo
+- Run the demo (**This does not work yet**)
 
     ```bash
     python3 demo/demo_cyraft.py
@@ -110,7 +109,6 @@ Code improvements:
     >   ```bash
     >   rm -rf ~/.pycyphal
     >   ```
-
 
 ## Diagrams
 
