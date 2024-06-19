@@ -92,12 +92,14 @@ Code improvements:
     export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
     ```
 
-- Set environment variables (registers)
+- Run the tests
 
     ```bash
     cd ~/cyraft
-    source my_env.sh
+    pytest tests/
     ```
+
+    ![pytest-result](images/pytest.png)
 
 - Run the demo (**This does not work yet**)
 
