@@ -95,8 +95,8 @@ Code improvements:
 - Set up all necessary environment variables:
 
    ```bash
-    cd ~/cyraft
-    source my_env.sh
+   cd ~/cyraft
+   source my_env.sh
     ```
 
 - Run the tests
