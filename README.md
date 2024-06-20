@@ -94,7 +94,7 @@ Code improvements:
 
 - Set up all necessary environment variables:
 
--   ```bash
+   ```bash
     cd ~/cyraft
     source my_env.sh
     ```
