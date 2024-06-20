@@ -92,6 +92,13 @@ Code improvements:
     export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
     ```
 
+- Set up all necessary environment variables:
+
+   ```bash
+   cd ~/cyraft
+   source my_env.sh
+    ```
+
 - Run the tests
 
     ```bash
