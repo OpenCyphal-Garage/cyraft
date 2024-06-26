@@ -97,6 +97,8 @@ async def _unittest_raft_node_init() -> None:
     assert raft_node._next_index == [1]
     raft_node.close()
     await asyncio.sleep(1)
+    raft_node.close()
+    await asyncio.sleep(1)
     # assert raft_node._match_index == [0]
     raft_node.close()
     await asyncio.sleep(1)
@@ -227,6 +229,7 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     await asyncio.sleep(1)
     raft_node.close()
     await asyncio.sleep(1)
+
 
 async def _unittest_raft_node_start_election() -> None:
     """
@@ -676,4 +679,5 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[3].entry.value == 12
     assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.value == 13
-    
+    raft_node.close()
+    await asyncio.sleep(1)
