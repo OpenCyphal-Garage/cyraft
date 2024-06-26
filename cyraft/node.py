@@ -208,8 +208,11 @@ class RaftNode:
         if request.term < self._term or (self._voted_for is not None):
             _logger.info(
                 c["request_vote"]
-                + "Request vote request denied (term < self._term or already voted for another candidate in this term)"
-                + c["end_color"]
+                + "Request vote request denied (term (%d) < self._term (%d) or already voted for another candidate in this term (%s))"
+                + c["end_color"],
+                request.term,
+                self._term,
+                self._voted_for,
             )
             return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
@@ -338,15 +341,18 @@ class RaftNode:
                     self._voted_for = metadata.client_node_id
                 self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
                 self._term = request.term  # update term
+
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
         # Reply false if term < currentTerm (§5.1)
         if request.term < self._term:
             _logger.info(
                 c["append_entries"]
-                + "Node ID: %d -- Append entries request denied (term < currentTerm)"
+                + "Node ID: %d -- Append entries request denied (term (%d) < currentTerm (%d))"
                 + c["end_color"],
                 self._node.id,
+                request.term,
+                self._term
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
@@ -617,6 +623,17 @@ class RaftNode:
 
         if self._state == RaftState.FOLLOWER:
             # Cancel the term timeout (if it exists), and schedule a new election timeout.
+            for remote_node_index, remote_next_index in enumerate(self._next_index):
+                _logger.info(
+                    c["raft_logic"]
+                    + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
+                    + c["end_color"],
+                    self._node.id,
+                    self._commit_index,
+                    remote_next_index,
+                    self._cluster[remote_node_index],
+                )
+
             if hasattr(self, "_term_timer"):
                 self._term_timer.cancel()  # FOLLOWER should not have term timer
             self._reset_election_timeout()  # FOLLOWER should have election timer
@@ -629,6 +646,7 @@ class RaftNode:
                 self._election_timer.cancel()
         elif self._state == RaftState.LEADER:
             assert self._prev_state == RaftState.CANDIDATE, "Invalid state change 3"
+            
             # Cancel the election timeout (if it exists), and schedule a new term timeout.
             if hasattr(self, "_election_timer"):
                 self._election_timer.cancel()
@@ -691,6 +709,17 @@ class RaftNode:
             if self._state != RaftState.LEADER:
                 # if the node is no longer a leader, stop sending heartbeats
                 break
+
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
+                + c["end_color"],
+                self._node.id,
+                self._commit_index,
+                remote_next_index,
+                self._cluster[remote_node_index],
+            )
+
             if self._commit_index + 1 == remote_next_index:  # remote log is up to date
                 _logger.info(
                     c["raft_logic"]
