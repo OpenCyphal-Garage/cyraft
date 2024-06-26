@@ -593,7 +593,309 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    await asyncio.sleep(1)
+
+# =======================================================================================
+# ========== Test that log replication happens correctly if leadership changes ==========
+# =======================================================================================
+
 
 async def _unittest_raft_leader_changes() -> None:
-    # TODO: Test that log replication happens correctly if leadership changes
-    pass
+
+    logging.root.setLevel(logging.INFO)
+
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.5
+    ELECTION_TIMEOUT = 5
+
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node_1 = RaftNode()
+    raft_node_1.term_timeout = TERM_TIMEOUT
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.term_timeout = TERM_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT + 1
+    os.environ["UAVCAN__NODE__ID"] = "43"
+    raft_node_3 = RaftNode()
+    raft_node_3.term_timeout = TERM_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
+
+    # make all part of the same cluster
+    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+    raft_node_1.add_remote_node(cluster)
+    raft_node_2.add_remote_node(cluster)
+    raft_node_3.add_remote_node(cluster)
+
+    # start all nodes
+    asyncio.create_task(raft_node_1.run())
+    asyncio.create_task(raft_node_2.run())
+    asyncio.create_task(raft_node_3.run())
+
+    # wait for the leader to be elected
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)
+
+    # check if the leader is elected
+    assert raft_node_1._state == RaftState.LEADER
+    assert raft_node_2._state == RaftState.FOLLOWER
+    assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_1._voted_for == 41
+    assert raft_node_2._voted_for == 41
+    assert raft_node_3._voted_for == 41
+
+    new_entries = [
+        sirius_cyber_corp.LogEntry_1(
+            term=4,
+            entry=sirius_cyber_corp.Entry_1(
+                name=uavcan.primitive.String_1(value="top_1"),
+                value=7,
+            ),
+        ),
+        sirius_cyber_corp.LogEntry_1(
+            term=5,
+            entry=sirius_cyber_corp.Entry_1(
+                name=uavcan.primitive.String_1(value="top_2"),
+                value=8,
+            ),
+        ),
+        sirius_cyber_corp.LogEntry_1(
+            term=6,
+            entry=sirius_cyber_corp.Entry_1(
+                name=uavcan.primitive.String_1(value="top_3"),
+                value=9,
+            ),
+        ),
+    ]
+
+    for index, new_entry in enumerate(new_entries):
+        request = sirius_cyber_corp.AppendEntries_1.Request(
+            term=raft_node_1._term,
+            prev_log_index=index,  # prev_log_index: 0, 1, 2
+            prev_log_term=raft_node_1._log[index].term,
+            log_entry=new_entry,
+        )
+        metadata = pycyphal.presentation.ServiceRequestMetadata(
+            client_node_id=42,
+            timestamp=time.time(),
+            priority=0,
+            transfer_id=0,
+        )
+        response = await raft_node_1._serve_append_entries(request, metadata)
+        assert response.success == True
+    _logger.info("=========Start=========")
+    # wait for the request to be replicated
+    await asyncio.sleep(TERM_TIMEOUT + 1)
+
+    # check if the new entry is replicated in the leader node
+    assert len(raft_node_1._log) == 1 + 3
+    assert raft_node_1._log[0].term == 0
+    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_1._log[0].entry.value == 0
+    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_1._log[1].entry.value == 7
+    assert raft_node_1._log[2].term == 5
+    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_1._log[2].entry.value == 8
+    assert raft_node_1._log[3].term == 6
+    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_1._log[3].entry.value == 9
+    assert raft_node_1._commit_index == 3
+
+    # check if the new entry is replicated in the follower nodes
+    assert len(raft_node_2._log) == 1 + 3
+    assert raft_node_2._log[0].term == 0
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_2._log[0].entry.value == 0
+    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_2._log[1].entry.value == 7
+    assert raft_node_2._log[2].term == 5
+    assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_2._log[2].entry.value == 8
+    assert raft_node_2._log[3].term == 6
+    assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_2._log[3].entry.value == 9
+    assert raft_node_2._commit_index == 3
+
+    assert len(raft_node_3._log) == 1 + 3
+    assert raft_node_3._log[0].term == 0
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_3._log[0].entry.value == 0
+    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_3._log[1].entry.value == 7
+    assert raft_node_3._log[2].term == 5
+    assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_3._log[2].entry.value == 8
+    assert raft_node_3._log[3].term == 6
+    assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_3._log[3].entry.value == 9
+    assert raft_node_3._commit_index == 3
+    
+    await asyncio.sleep(TERM_TIMEOUT + 1)
+    _logger.info("================== TEST 1: change LEADER and check logs ==================")
+
+    # New LEADER => raft_node_2
+
+    raft_node_1.election_timeout = ELECTION_TIMEOUT + 1
+    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
+
+    raft_node_1._change_state(RaftState.FOLLOWER)
+    raft_node_2._change_state(RaftState.FOLLOWER)
+    raft_node_3._change_state(RaftState.FOLLOWER)
+    raft_node_1._voted_for = None
+
+
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)
+
+    assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_1._term == 1, "received heartbeat from LEADER"
+    assert raft_node_1._voted_for == 42
+
+    assert raft_node_2._state == RaftState.LEADER
+    assert raft_node_2._term == 1
+    assert raft_node_2._voted_for == 42
+
+    assert raft_node_3._state == RaftState.FOLLOWER
+    assert raft_node_3._term == 1, "received heartbeat from LEADER"
+    assert raft_node_3._voted_for == 42
+
+    # check that all logs are saved from previous LEADER
+    assert len(raft_node_1._log) == 1 + 3
+    assert raft_node_1._log[0].term == 0
+    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_1._log[0].entry.value == 0
+    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_1._log[1].entry.value == 7
+    assert raft_node_1._log[2].term == 5
+    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_1._log[2].entry.value == 8
+    assert raft_node_1._log[3].term == 6
+    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_1._log[3].entry.value == 9
+    assert raft_node_1._commit_index == 3
+
+    assert len(raft_node_2._log) == 1 + 3
+    assert raft_node_2._log[0].term == 0
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_2._log[0].entry.value == 0
+    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_2._log[1].entry.value == 7
+    assert raft_node_2._log[2].term == 5
+    assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_2._log[2].entry.value == 8
+    assert raft_node_2._log[3].term == 6
+    assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_2._log[3].entry.value == 9
+    assert raft_node_2._commit_index == 3
+
+    assert len(raft_node_3._log) == 1 + 3
+    assert raft_node_3._log[0].term == 0
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_3._log[0].entry.value == 0
+    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_3._log[1].entry.value == 7
+    assert raft_node_3._log[2].term == 5
+    assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_3._log[2].entry.value == 8
+    assert raft_node_3._log[3].term == 6
+    assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_3._log[3].entry.value == 9
+    assert raft_node_3._commit_index == 3
+
+    _logger.info("================== TEST 2: append new log entry fron another LEADER ==================")
+
+    new_entry = sirius_cyber_corp.LogEntry_1(
+        term=7,
+        entry=sirius_cyber_corp.Entry_1(
+            name=uavcan.primitive.String_1(value="top_4"),
+            value=13,
+        ),
+    )
+    request = sirius_cyber_corp.AppendEntries_1.Request(
+        term=raft_node_2._term,
+        prev_log_index=3,  # index of top_3
+        prev_log_term=raft_node_2._log[3].term,
+        log_entry=new_entry,
+    )
+    metadata = pycyphal.presentation.ServiceRequestMetadata(
+        client_node_id=43,
+        timestamp=time.time(),
+        priority=0,
+        transfer_id=0,
+    )
+
+    response = await raft_node_2._serve_append_entries(request, metadata)
+    _logger.info("=========END=========")
+    assert response.success == True
+
+    await asyncio.sleep(TERM_TIMEOUT + 1)
+
+    assert len(raft_node_2._log) == 1 + 4
+    assert raft_node_2._log[0].term == 0
+    assert raft_node_2._log[0].entry.value == 0
+    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_2._log[1].entry.value == 7
+    assert raft_node_2._log[2].term == 5
+    assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_2._log[2].entry.value == 8
+    assert raft_node_2._log[3].term == 6
+    assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_2._log[3].entry.value == 9
+    assert raft_node_2._log[4].term == 7
+    assert raft_node_2._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
+    assert raft_node_2._log[4].entry.value == 13
+    assert raft_node_2._commit_index == 4
+
+    assert len(raft_node_1._log) == 1 + 4
+    assert raft_node_1._log[0].term == 0
+    assert raft_node_1._log[0].entry.value == 0
+    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_1._log[1].entry.value == 7
+    assert raft_node_1._log[2].term == 5
+    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_1._log[2].entry.value == 8
+    assert raft_node_1._log[3].term == 6
+    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_1._log[3].entry.value == 9
+    assert raft_node_1._log[4].term == 7
+    assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
+    assert raft_node_1._log[4].entry.value == 13
+    assert raft_node_1._commit_index == 4
+    
+    assert len(raft_node_3._log) == 1 + 4
+    assert raft_node_3._log[0].term == 0
+    assert raft_node_3._log[0].entry.value == 0
+    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_3._log[1].entry.value == 7
+    assert raft_node_3._log[2].term == 5
+    assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_3._log[2].entry.value == 8
+    assert raft_node_3._log[3].term == 6
+    assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_3._log[3].entry.value == 9
+    assert raft_node_3._log[4].term == 7
+    assert raft_node_3._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
+    assert raft_node_3._log[4].entry.value == 13
+    assert raft_node_3._commit_index == 4
+
+    
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    await asyncio.sleep(1)
