@@ -33,14 +33,13 @@ jobs:
         
     - name: Set up Environment Variables
       run: |
-        echo "PYTHONPATH=$PYTHONPATH:$HOME/cyraft/demo/custom_data_types/sirius_cyber_corp" >> $GITHUB_ENV
-        source my_env.sh
+        echo "PYTHONPATH=$PYTHONPATH:$HOME/work/cyraft/cyraft/demo/custom_data_types/sirius_cyber_corp" >> $GITHUB_ENV
         
     - name: Verify PYTHONPATH
       run: echo $PYTHONPATH
 
     - name: List directory for debugging
-      run: ls -R $HOME/cyraft/demo/custom_data_types/sirius_cyber_corp
+      run: ls -R $HOME/work/cyraft/cyraft/demo/custom_data_types/sirius_cyber_corp
 
     - name: Lint with flake8
       run: |
