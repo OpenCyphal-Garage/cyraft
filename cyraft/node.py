@@ -631,17 +631,6 @@ class RaftNode:
 
         if self._state == RaftState.FOLLOWER:
             # Cancel the term timeout (if it exists), and schedule a new election timeout.
-            for remote_node_index, remote_next_index in enumerate(self._next_index):
-                _logger.info(
-                    c["raft_logic"]
-                    + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
-                    + c["end_color"],
-                    self._node.id,
-                    self._commit_index,
-                    remote_next_index,
-                    self._cluster[remote_node_index],
-                )
-
             if hasattr(self, "_term_timer"):
                 self._term_timer.cancel()  # FOLLOWER should not have term timer
             self._reset_election_timeout()  # FOLLOWER should have election timer
