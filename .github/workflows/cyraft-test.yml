@@ -19,6 +19,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -32,15 +33,15 @@ jobs:
         
     - name: Set up Environment Variables
       run: |
-        echo "PYTHONPATH=$PYTHONPATH:$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types" >> $GITHUB_ENV
+        echo "PYTHONPATH=$PYTHONPATH:$HOME/cyraft/demo/custom_data_types/sirius_cyber_corp" >> $GITHUB_ENV
         source my_env.sh
         
     - name: Verify PYTHONPATH
       run: echo $PYTHONPATH
 
     - name: List directory for debugging
-      run: ls -R
-      
+      run: ls -R $HOME/cyraft/demo/custom_data_types/sirius_cyber_corp
+
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -49,5 +50,8 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
     - name: Test with pytest
+      env:
+        PYTHONPATH: ${{ env.PYTHONPATH }}
       run: |
+        echo "PYTHONPATH is set to $PYTHONPATH"
         pytest tests/
