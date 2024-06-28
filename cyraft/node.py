@@ -88,6 +88,8 @@ class RaftNode:
 
         ## Volatile state on leaders
         self._next_index: typing.List[int] = []  # index of the next log entry to send to that server
+
+
         # self._match_index: typing.List[int] = []  # index of highest log entry known to be replicated on server
 
         ########################################
@@ -367,15 +369,19 @@ class RaftNode:
                     self._node.id,
                 )
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
-        except IndexError:
+        except IndexError as e:
             _logger.info(
-                c["append_entries"] + "Node ID: %d -- Append entries request denied (log mismatch 2)" + c["end_color"],
-                self._node.id,
-            )
+            c["append_entries"]
+            + "Node ID: %d -- Append entries request denied (log mismatch 2). IndexError: %s. "
+            + "prev_log_index: %d, log_length: %d"
+            + c["end_color"],
+            self._node.id,
+            str(e),
+            request.prev_log_index,
+            len(self._log))
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         self._append_entries_processing(request)
-
         return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
     def _append_entries_processing(
@@ -448,7 +454,9 @@ class RaftNode:
 
         # Update current_term (if follower) (leaders will update their own term on timeout)
         if self._state == RaftState.FOLLOWER:
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             self._term = request.log_entry[0].term
+            
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
@@ -623,17 +631,6 @@ class RaftNode:
 
         if self._state == RaftState.FOLLOWER:
             # Cancel the term timeout (if it exists), and schedule a new election timeout.
-            for remote_node_index, remote_next_index in enumerate(self._next_index):
-                _logger.info(
-                    c["raft_logic"]
-                    + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
-                    + c["end_color"],
-                    self._node.id,
-                    self._commit_index,
-                    remote_next_index,
-                    self._cluster[remote_node_index],
-                )
-
             if hasattr(self, "_term_timer"):
                 self._term_timer.cancel()  # FOLLOWER should not have term timer
             self._reset_election_timeout()  # FOLLOWER should have election timer
@@ -715,7 +712,7 @@ class RaftNode:
                 + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
                 + c["end_color"],
                 self._node.id,
-                self._commit_index,
+                self._commit_index + 1,
                 remote_next_index,
                 self._cluster[remote_node_index],
             )
