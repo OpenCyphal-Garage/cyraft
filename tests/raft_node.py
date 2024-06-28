@@ -385,6 +385,8 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
+
+
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
