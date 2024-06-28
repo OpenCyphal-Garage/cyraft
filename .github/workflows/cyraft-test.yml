@@ -32,6 +32,7 @@ jobs:
       run: |
         export CYPHAL_PATH="$HOME/cyraft/demo/custom_data_types:$HOME/cyraft/demo/public_regulated_data_types"
         source my_env.sh
+        echo "PYTHONPATH=$PWD/cyraft" >> $GITHUB_ENV
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
