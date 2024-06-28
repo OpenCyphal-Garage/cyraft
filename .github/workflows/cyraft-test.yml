@@ -34,6 +34,7 @@ jobs:
     - name: Set up Environment Variables
       run: |
         echo "PYTHONPATH=$PYTHONPATH:$HOME/work/cyraft/cyraft/demo/custom_data_types/sirius_cyber_corp" >> $GITHUB_ENV
+        echo "Updated PYTHONPATH to $PYTHONPATH"
         
     - name: Verify PYTHONPATH
       run: echo $PYTHONPATH
@@ -49,8 +50,6 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
     - name: Test with pytest
-      env:
-        PYTHONPATH: ${{ env.PYTHONPATH }}
       run: |
         echo "PYTHONPATH is set to $PYTHONPATH"
         pytest tests/
