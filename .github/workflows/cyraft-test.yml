@@ -33,10 +33,10 @@ jobs:
         
     - name: Set up Environment Variables
       run: |
-        export CYPHAL_PATH="$HOME/work/cyraft/cyraft/demo/custom_data_types:$HOME/work/cyraft/cyraft/demo/public_regulated_data_types"
+        echo "CYPHAL_PATH=$HOME/work/cyraft/cyraft/demo/custom_data_types:$HOME/work/cyraft/cyraft/demo/public_regulated_data_types" >> $GITHUB_ENV
         source my_env.sh
         
-    - name: Verify PYTHONPATH
+    - name: Verify CYPHAL_PATH
       run: echo $CYPHAL_PATH
 
     - name: List directory for debugging
