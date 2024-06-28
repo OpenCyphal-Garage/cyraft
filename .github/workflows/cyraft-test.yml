@@ -33,14 +33,14 @@ jobs:
         
     - name: Set up Environment Variables
       run: |
-        echo "PYTHONPATH=$PYTHONPATH:$HOME/work/cyraft/cyraft/demo/custom_data_types/sirius_cyber_corp" >> $GITHUB_ENV
-        echo "Updated PYTHONPATH to $PYTHONPATH"
+        export CYPHAL_PATH="$HOME/work/cyraft/cyraft/demo/custom_data_types:$HOME/work/cyraft/cyraft/demo/public_regulated_data_types"
+        source my_env.sh
         
     - name: Verify PYTHONPATH
-      run: echo $PYTHONPATH
+      run: echo $CYPHAL_PATH
 
     - name: List directory for debugging
-      run: ls -R $HOME/work/cyraft/cyraft/demo/custom_data_types/sirius_cyber_corp
+      run: ls -R $HOME/work/cyraft/cyraft
 
     - name: Lint with flake8
       run: |
@@ -50,6 +50,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
     - name: Test with pytest
-      run: |
-        echo "PYTHONPATH is set to $PYTHONPATH"
-        pytest tests/
+      run: pytest tests/
