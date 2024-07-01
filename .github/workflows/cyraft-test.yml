@@ -33,13 +33,21 @@ jobs:
         
     - name: Set up Environment Variable CYPHAL_PATH
       run: |
-        echo "CYPHAL_PATH=$HOME/work/cyraft/cyraft/demo/custom_data_types:$HOME/work/cyraft/cyraft/demo/public_regulated_data_types" >> $GITHUB_ENV
+        echo "CYPHAL_PATH=$GITHUB_WORKSPACE/demo/custom_data_types:$GITHUB_WORKSPACE/demo/public_regulated_data_types" >> $GITHUB_ENV
         
     - name: Run File my_env.sh
       run: source my_env.sh
       
     - name: Verify CYPHAL_PATH
       run: echo $CYPHAL_PATH
+
+    - name: List directory for debugging
+      run: ls -R $GITHUB_WORKSPACE/demo
+
+    - name: Check DSDL directories
+      run: |
+        ls $GITHUB_WORKSPACE/demo/custom_data_types/sirius_cyber_corp
+        ls $GITHUB_WORKSPACE/demo/public_regulated_data_types/uavcan/primitive
 
     - name: List directory for debugging
       run: ls -R $HOME/work/cyraft/cyraft
