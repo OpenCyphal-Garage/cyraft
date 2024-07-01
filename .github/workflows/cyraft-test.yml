@@ -5,9 +5,11 @@ name: Cyraft application
 
 on:
   push:
-    branches: [ "test_CI" ]
+    branches:
+      - ${{ github.ref }}
   pull_request:
-    branches: [ "test_CI" ]
+    branches:
+      - ${{ github.ref }}
 
 permissions:
   contents: read
