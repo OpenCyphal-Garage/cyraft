@@ -37,8 +37,13 @@ jobs:
       run: |
         echo "CYPHAL_PATH=$GITHUB_WORKSPACE/demo/custom_data_types:$GITHUB_WORKSPACE/demo/public_regulated_data_types" >> $GITHUB_ENV
         
-    - name: Run File my_env.sh
-      run: source my_env.sh
+    - name: Source my_env.sh
+      run: |
+        source $GITHUB_WORKSPACE/cyraft/my_env.sh
+        echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID"
+        echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE"
+        echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID"
+        echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY"
       
     - name: Verify CYPHAL_PATH
       run: echo $CYPHAL_PATH
