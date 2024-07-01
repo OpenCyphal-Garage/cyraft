@@ -341,7 +341,7 @@ class RaftNode:
                         metadata.client_node_id,
                     )
                     self._voted_for = metadata.client_node_id
-                self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
+                #self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
                 self._term = request.term  # update term
 
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
