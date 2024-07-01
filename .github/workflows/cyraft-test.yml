@@ -38,7 +38,8 @@ jobs:
         echo "CYPHAL_PATH=$GITHUB_WORKSPACE/demo/custom_data_types:$GITHUB_WORKSPACE/demo/public_regulated_data_types" >> $GITHUB_ENV
         
     - name: Source my_env.sh
-      run: source $GITHUB_WORKSPACE/my_env.sh
+      run: |
+        source $GITHUB_WORKSPACE/my_env.sh
       
     - name: Debug environment variables
       run: |
