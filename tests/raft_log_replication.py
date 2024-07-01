@@ -790,8 +790,11 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_1._change_state(RaftState.FOLLOWER)
     raft_node_2._change_state(RaftState.FOLLOWER)
     raft_node_3._change_state(RaftState.FOLLOWER)
-    raft_node_1._voted_for = None
 
+    # Need to reset the votes of each node so that node 41 doesn't win again.
+    raft_node_1._voted_for = None 
+    raft_node_2._voted_for = None 
+    raft_node_3._voted_for = None 
 
     await asyncio.sleep(2*ELECTION_TIMEOUT + 1)
 
@@ -932,7 +935,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[4].entry.value == 13
     assert raft_node_3._commit_index == 4
 
-    _logger.info("================== TEST 3: Replace log entries 1 and 4 with new entries from another LEADER ==================")
+    _logger.info("================== TEST 3: Replace log entry 3 with new entries from another LEADER ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
