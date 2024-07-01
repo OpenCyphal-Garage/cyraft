@@ -43,10 +43,10 @@ jobs:
     - name: Source and export my_env.sh
       run: |
         source $GITHUB_WORKSPACE/my_env.sh
-        export UAVCAN__NODE__ID=$UAVCAN__NODE__ID
-        export UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE
-        export UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID
-        export UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY
+        echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID" >> $GITHUB_ENV
+        echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE" >> $GITHUB_ENV
+        echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID" >> $GITHUB_ENV
+        echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY" >> $GITHUB_ENV
 
     - name: Debug environment variables
       run: |
