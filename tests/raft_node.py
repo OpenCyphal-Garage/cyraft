@@ -95,6 +95,8 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 1
     assert len(raft_node._append_entries_clients) == 1
     assert raft_node._next_index == [1]
+    raft_node.close()
+    await asyncio.sleep(1)
     # assert raft_node._match_index == [0]
 
 
@@ -153,7 +155,6 @@ async def _unittest_raft_node_election_timeout() -> None:
 
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
-
 
 async def _unittest_raft_node_heartbeat() -> None:
     """
@@ -272,7 +273,6 @@ async def _unittest_raft_node_heartbeat() -> None:
     raft_node.close()
     await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
 
-
 async def _unittest_raft_node_request_vote_rpc() -> None:
     """
     Test the _serve_request_vote() method
@@ -332,6 +332,8 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     assert raft_node._voted_for == 42
     assert response.vote_granted == True
     assert raft_node._term == request.term  # follower node term is updated to candidate's term
+    raft_node.close()
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_node_start_election() -> None:
@@ -497,6 +499,8 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node._term == 6
     assert raft_node._voted_for == 42
+
+
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
@@ -780,3 +784,5 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[3].entry.value == 12
     assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.value == 13
+    raft_node.close()
+    await asyncio.sleep(1)

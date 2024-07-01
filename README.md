@@ -33,16 +33,16 @@ This feature is significant because it enables Cyphal to serve as a communicatio
         - [ ] some warning need to be fixed here:
           - [ ] _unittest_raft_node_term_timeout
           - [ ] _unittest_raft_node_start_election
-      - [ ] `log_replication.py`
+      - [x] `log_replication.py`
         - [x] `_unittest_raft_log_replication`
-        - [ ] `_unittest_raft_leader_changes`
+        - [x] `_unittest_raft_leader_changes`
       - [ ] `leader_commit` needs to integrated/tested
     - [ ] Test using orchestration so there's 3 nodes running simultanously
       - [ ] use yakut to send AppendEntries requests
     - [ ] [Add name resolution service](https://github.com/OpenCyphal-Garage/cyraft/issues/3)
     - [ ] [Monitor the network for online nodes](https://github.com/OpenCyphal-Garage/cyraft/issues/4)
   - [ ] `.env-variables` and `my_env.sh` should be combined?
-  - [ ] Implement Github CI
+  - [x] Implement Github CI
 -  [x] Refactor code into `cyraft`
 
 Questions:
