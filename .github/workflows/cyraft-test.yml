@@ -10,6 +10,12 @@ on:
   pull_request:
     branches:
       - ${{ github.event.pull_request.branch.ref }}
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: ${{ github.event.push.branch || github.event.pull_request.branch.ref }}
 
 permissions:
   contents: read
