@@ -6,16 +6,16 @@ name: Cyraft application
 on:
   push:
     branches:
-      - ${{ github.event.push.branchName }}
+      - '*'
   pull_request:
     branches:
-      - ${{ github.event.pull_request.head.refName }}
+      - '*'
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to build'
         required: true
-        default: ${{ github.event.push.branchName || github.event.pull_request.head.refName }}
+        default: ${{ github.ref_name }}
 
 permissions:
   contents: read
