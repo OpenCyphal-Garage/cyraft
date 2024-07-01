@@ -42,7 +42,7 @@ This feature is significant because it enables Cyphal to serve as a communicatio
     - [ ] [Add name resolution service](https://github.com/OpenCyphal-Garage/cyraft/issues/3)
     - [ ] [Monitor the network for online nodes](https://github.com/OpenCyphal-Garage/cyraft/issues/4)
   - [ ] `.env-variables` and `my_env.sh` should be combined?
-  - [ ] Implement Github CI
+  - [x] Implement Github CI
 -  [x] Refactor code into `cyraft`
 
 Questions:
