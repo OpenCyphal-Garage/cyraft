@@ -36,10 +36,17 @@ jobs:
     - name: Set up Environment Variable CYPHAL_PATH
       run: |
         echo "CYPHAL_PATH=$GITHUB_WORKSPACE/demo/custom_data_types:$GITHUB_WORKSPACE/demo/public_regulated_data_types" >> $GITHUB_ENV
-        
+              
+    - name: Verify CYPHAL_PATH
+      run: echo $CYPHAL_PATH
+      
     - name: Source my_env.sh
       run: |
         source $GITHUB_WORKSPACE/my_env.sh
+        echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID"
+        echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE"
+        echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID"
+        echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY"
       
     - name: Debug environment variables
       run: |
@@ -47,10 +54,7 @@ jobs:
         echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE"
         echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID"
         echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY"
-      
-    - name: Verify CYPHAL_PATH
-      run: echo $CYPHAL_PATH
-
+        
     - name: List directory for debugging
       run: ls -R $GITHUB_WORKSPACE/demo
 
