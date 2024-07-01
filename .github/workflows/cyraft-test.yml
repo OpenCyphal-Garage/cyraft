@@ -39,7 +39,7 @@ jobs:
         
     - name: Source my_env.sh
       run: |
-        source $GITHUB_WORKSPACE/cyraft/my_env.sh
+        source $GITHUB_WORKSPACE/my_env.sh
         echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID"
         echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE"
         echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID"
