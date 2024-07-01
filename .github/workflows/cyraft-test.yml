@@ -31,11 +31,13 @@ jobs:
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
-    - name: Set up Environment Variables
+    - name: Set up Environment Variable CYPHAL_PATH
       run: |
         echo "CYPHAL_PATH=$HOME/work/cyraft/cyraft/demo/custom_data_types:$HOME/work/cyraft/cyraft/demo/public_regulated_data_types" >> $GITHUB_ENV
-        source my_env.sh
         
+    - name: Run File my_env.sh
+      run: source my_env.sh
+      
     - name: Verify CYPHAL_PATH
       run: echo $CYPHAL_PATH
 
