@@ -88,8 +88,6 @@ class RaftNode:
 
         ## Volatile state on leaders
         self._next_index: typing.List[int] = []  # index of the next log entry to send to that server
-
-
         # self._match_index: typing.List[int] = []  # index of highest log entry known to be replicated on server
 
         ########################################
@@ -454,7 +452,7 @@ class RaftNode:
 
         # Update current_term (if follower) (leaders will update their own term on timeout)
         if self._state == RaftState.FOLLOWER:
-            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
+            self._reset_election_timeout()
             self._term = request.log_entry[0].term
             
 
