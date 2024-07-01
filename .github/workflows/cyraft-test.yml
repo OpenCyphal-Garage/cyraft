@@ -6,10 +6,10 @@ name: Cyraft application
 on:
   push:
     branches:
-      - ${{ github.ref }}
+      - ${{ github.event.push.branch }}
   pull_request:
     branches:
-      - ${{ github.ref }}
+      - ${{ github.event.pull_request.branch.ref }}
 
 permissions:
   contents: read
