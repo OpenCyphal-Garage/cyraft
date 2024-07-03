@@ -352,7 +352,7 @@ class RaftNode:
                 + c["end_color"],
                 self._node.id,
                 request.term,
-                self._term
+                self._term,
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
@@ -369,14 +369,15 @@ class RaftNode:
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
         except IndexError as e:
             _logger.info(
-            c["append_entries"]
-            + "Node ID: %d -- Append entries request denied (log mismatch 2). IndexError: %s. "
-            + "prev_log_index: %d, log_length: %d"
-            + c["end_color"],
-            self._node.id,
-            str(e),
-            request.prev_log_index,
-            len(self._log))
+                c["append_entries"]
+                + "Node ID: %d -- Append entries request denied (log mismatch 2). IndexError: %s. "
+                + "prev_log_index: %d, log_length: %d"
+                + c["end_color"],
+                self._node.id,
+                str(e),
+                request.prev_log_index,
+                len(self._log),
+            )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         self._append_entries_processing(request)
@@ -454,7 +455,6 @@ class RaftNode:
         if self._state == RaftState.FOLLOWER:
             self._reset_election_timeout()
             self._term = request.log_entry[0].term
-            
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
@@ -641,7 +641,7 @@ class RaftNode:
                 self._election_timer.cancel()
         elif self._state == RaftState.LEADER:
             assert self._prev_state == RaftState.CANDIDATE, "Invalid state change 3"
-            
+
             # Cancel the election timeout (if it exists), and schedule a new term timeout.
             if hasattr(self, "_election_timer"):
                 self._election_timer.cancel()

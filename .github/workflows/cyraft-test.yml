@@ -40,10 +40,6 @@ jobs:
       run: |
         # Upgrade pip to the latest version, to ensure we have the latest package manager
         python -m pip install --upgrade pip
-        # Install flake8, which is a Python linter that checks for syntax errors and coding standards
-        pip install flake8
-        # Install pytest, which is a testing framework for Python
-        pip install pytest
         # If a requirements.txt file exists in the repository, install the dependencies specified in it
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
@@ -87,13 +83,11 @@ jobs:
         ls $GITHUB_WORKSPACE/demo/custom_data_types/sirius_cyber_corp
         ls $GITHUB_WORKSPACE/demo/public_regulated_data_types/uavcan/primitive
 
-      # Lint with flake8, to check for Python syntax errors and coding standards
-    - name: Lint with flake8
+      # Lint with bleck, to check for Python syntax errors and coding standards
+    - name: Lint with black
       run: |
-        # Run flake8 to check for Python syntax errors and undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Run flake8 again with exit-zero to treat all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # Run black to format the code
+        black . --check
         
     # Test with pytest, to run unit tests and verify the application's functionality
     - name: Test with pytest

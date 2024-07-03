@@ -12,7 +12,7 @@ import uavcan
 
 # Add parent directory to Python path
 # Get the absolute path of the parent directory
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Add the parent directory to the Python path
 sys.path.append(parent_dir)
 # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
@@ -598,6 +598,7 @@ async def _unittest_raft_log_replication() -> None:
     raft_node_3.close()
     await asyncio.sleep(1)
 
+
 # =======================================================================================
 # ========== Test that log replication happens correctly if leadership changes ==========
 # =======================================================================================
@@ -640,6 +641,7 @@ async def _unittest_raft_log_replication() -> None:
   |____________|____________|____________|_____________|
   
 """
+
 
 async def _unittest_raft_leader_changes() -> None:
 
@@ -777,7 +779,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
-    
+
     await asyncio.sleep(TERM_TIMEOUT + 1)
     _logger.info("================== TEST 1: Change LEADER and check logs ==================")
 
@@ -792,11 +794,11 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_3._change_state(RaftState.FOLLOWER)
 
     # Need to reset the votes of each node so that node 41 doesn't win again.
-    raft_node_1._voted_for = None 
-    raft_node_2._voted_for = None 
-    raft_node_3._voted_for = None 
+    raft_node_1._voted_for = None
+    raft_node_2._voted_for = None
+    raft_node_3._voted_for = None
 
-    await asyncio.sleep(2*ELECTION_TIMEOUT + 1)
+    await asyncio.sleep(2 * ELECTION_TIMEOUT + 1)
 
     assert raft_node_1._state == RaftState.FOLLOWER
     assert raft_node_1._term == 20, "received heartbeat from LEADER"
@@ -917,7 +919,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
     assert raft_node_1._commit_index == 4
-    
+
     assert len(raft_node_3._log) == 1 + 4
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.value == 0
@@ -935,7 +937,9 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[4].entry.value == 13
     assert raft_node_3._commit_index == 4
 
-    _logger.info("================== TEST 3: Replace log entry 3 with new entries from another LEADER ==================")
+    _logger.info(
+        "================== TEST 3: Replace log entry 3 with new entries from another LEADER =================="
+    )
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
@@ -1007,7 +1011,6 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.value == 10
     assert raft_node_3._commit_index == 3
 
-    
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()

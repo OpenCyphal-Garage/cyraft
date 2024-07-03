@@ -12,7 +12,7 @@ import uavcan
 
 # Add parent directory to Python path
 # Get the absolute path of the parent directory
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Add the parent directory to the Python path
 sys.path.append(parent_dir)
 # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
@@ -156,6 +156,7 @@ async def _unittest_raft_node_election_timeout() -> None:
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
 
+
 async def _unittest_raft_node_heartbeat() -> None:
     """
     Test that the node does NOT convert to candidate if it receives a heartbeat message
@@ -272,6 +273,7 @@ async def _unittest_raft_node_heartbeat() -> None:
 
     raft_node.close()
     await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
+
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
     """
@@ -499,8 +501,6 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     assert raft_node._term == 6
     assert raft_node._voted_for == 42
-
-
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
