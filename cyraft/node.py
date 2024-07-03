@@ -357,7 +357,6 @@ class RaftNode:
                 self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
                 self._term = request.term  # update term
 
-
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
         # Reply false if term < currentTerm (§5.1)
@@ -386,7 +385,6 @@ class RaftNode:
                     self._node.id,
                 )
                 return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
-        except IndexError as e:
         except IndexError as e:
             _logger.info(
                 c["append_entries"]
@@ -702,7 +700,6 @@ class RaftNode:
         elif self._state == RaftState.LEADER:
             assert self._prev_state == RaftState.CANDIDATE, "Invalid state change 3"
 
-
             # Cancel the election timeout (if it exists), and schedule a new term timeout.
             if hasattr(self, "_election_timer"):
                 self._election_timer.cancel()
@@ -782,7 +779,6 @@ class RaftNode:
                 remote_next_index,
                 self._cluster[remote_node_index],
             )
-
 
             _logger.info(
                 c["raft_logic"]
