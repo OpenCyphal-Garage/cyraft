@@ -3,14 +3,12 @@
 # Name of the workflow, which will be displayed in the GitHub Actions dashboard
 name: Cyraft application
 
-# Trigger the workflow on push and pull request events for all branches
-on:
-  push:
-    branches:
-      - '*'  # This means the workflow will run on every push event, regardless of the branch
-  pull_request:
-    branches:
-      - '*'  # This means the workflow will run on every pull request event, regardless of the branch
+on: [ push, pull_request ]
+
+# Ensures that only one workflow is running at a time
+concurrency:
+  group: ${{ github.workflow_sha }}
+  cancel-in-progress: true
 
 # Set permissions to read contents, which allows the workflow to access the repository's code
 permissions:
