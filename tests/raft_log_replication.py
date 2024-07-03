@@ -644,7 +644,6 @@ async def _unittest_raft_log_replication() -> None:
 
 
 async def _unittest_raft_leader_changes() -> None:
-
     logging.root.setLevel(logging.INFO)
 
     os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
