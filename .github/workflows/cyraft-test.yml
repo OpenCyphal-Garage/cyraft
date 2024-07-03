@@ -85,7 +85,7 @@ jobs:
     - name: Lint with black
       run: |
         # Run black to format the code
-        black . --check
+        black . --check -v
         
     # Test with pytest, to run unit tests and verify the application's functionality
     - name: Test with pytest
