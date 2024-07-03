@@ -38,6 +38,8 @@ jobs:
       run: |
         # Upgrade pip to the latest version, to ensure we have the latest package manager
         python -m pip install --upgrade pip
+        # Install flake8, which is a Python linter that checks for syntax errors and coding standards
+        pip install flake8
         # If a requirements.txt file exists in the repository, install the dependencies specified in it
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
@@ -85,7 +87,7 @@ jobs:
     - name: Lint with black
       run: |
         # Run black to format the code
-        black . --check --diff --color --verbose
+        black . --check --diff --color --verbose && flake8 --select=E901,E999,F821,F822,F823 .
         
     # Test with pytest, to run unit tests and verify the application's functionality
     - name: Test with pytest
