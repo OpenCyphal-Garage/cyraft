@@ -677,6 +677,8 @@ async def _unittest_raft_leader_changes() -> None:
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
 
+    _logger.info("================== TEST 1: Append 3 Log Entries to LEADER node 41 ==================")
+
     # wait for the leader to be elected
     await asyncio.sleep(ELECTION_TIMEOUT + 1)
 
@@ -779,10 +781,10 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._commit_index == 3
     
     await asyncio.sleep(TERM_TIMEOUT + 1)
-    _logger.info("================== TEST 1: Change LEADER and check logs ==================")
+    
+    _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
     # New LEADER => raft_node_2
-
     raft_node_1.election_timeout = ELECTION_TIMEOUT + 1
     raft_node_2.election_timeout = ELECTION_TIMEOUT
     raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
@@ -855,8 +857,6 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
-
-    _logger.info("================== TEST 2: Append new log entry fron another LEADER ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
@@ -935,7 +935,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[4].entry.value == 13
     assert raft_node_3._commit_index == 4
 
-    _logger.info("================== TEST 3: Replace log entry 3 with new entries from another LEADER ==================")
+    _logger.info("================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
