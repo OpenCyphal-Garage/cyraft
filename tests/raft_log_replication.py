@@ -598,11 +598,13 @@ async def _unittest_raft_log_replication() -> None:
     raft_node_3.close()
     await asyncio.sleep(1)
 
-# =======================================================================================
-# ========== Test that log replication happens correctly if leadership changes ==========
-# =======================================================================================
+
 
 """
+=======================================================================================
+========== Test that log replication happens correctly if leadership changes ==========
+=======================================================================================
+
     Initially, all nodes have an empty log entry at index 0 with term 0.
    ____________ 
   | 0          |      Log index
