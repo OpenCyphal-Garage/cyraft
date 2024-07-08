@@ -667,17 +667,23 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_3 = RaftNode()
     raft_node_3.term_timeout = TERM_TIMEOUT
     raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
+    os.environ["UAVCAN__NODE__ID"] = "44"
+    raft_node_4 = RaftNode()
+    raft_node_4.term_timeout = TERM_TIMEOUT
+    raft_node_4.election_timeout = ELECTION_TIMEOUT + 1
 
     # make all part of the same cluster
-    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id, raft_node_4._node.id]
     raft_node_1.add_remote_node(cluster)
     raft_node_2.add_remote_node(cluster)
     raft_node_3.add_remote_node(cluster)
+    raft_node_4.add_remote_node(cluster)
 
     # start all nodes
     asyncio.create_task(raft_node_1.run())
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
+    asyncio.create_task(raft_node_4.run())
 
     _logger.info("================== TEST 1: Append 3 Log Entries to LEADER node 41 ==================")
 
@@ -691,6 +697,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_1._voted_for == 41
     assert raft_node_2._voted_for == 41
     assert raft_node_3._voted_for == 41
+    assert raft_node_4._voted_for == 41
 
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
@@ -781,55 +788,49 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
+
+    assert len(raft_node_4._log) == 1 + 3
+    assert raft_node_4._log[0].term == 0
+    assert raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_4._log[0].entry.value == 0
+    assert raft_node_4._log[1].term == 4
+    assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_4._log[1].entry.value == 7
+    assert raft_node_4._log[2].term == 5
+    assert raft_node_4._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_4._log[2].entry.value == 8
+    assert raft_node_4._log[3].term == 6
+    assert raft_node_4._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_4._log[3].entry.value == 9
+    assert raft_node_4._commit_index == 3
     
     await asyncio.sleep(TERM_TIMEOUT + 1)
     
     _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
     # New LEADER => raft_node_2
-    raft_node_1.election_timeout = ELECTION_TIMEOUT + 1
     raft_node_2.election_timeout = ELECTION_TIMEOUT
-    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 2
+    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2
+    await asyncio.sleep(TERM_TIMEOUT)
 
-    raft_node_1._change_state(RaftState.FOLLOWER)
-    raft_node_2._change_state(RaftState.FOLLOWER)
-    raft_node_3._change_state(RaftState.FOLLOWER)
+    raft_node_1.close() # Simulation of the disappearance of a leader from a cluster
 
-    # Need to reset the votes of each node so that node 41 doesn't win again.
-    raft_node_1._voted_for = None 
-    raft_node_2._voted_for = None 
-    raft_node_3._voted_for = None 
-
-    await asyncio.sleep(2*ELECTION_TIMEOUT + 1)
-
-    assert raft_node_1._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 20, "received heartbeat from LEADER"
-    assert raft_node_1._voted_for == 42
+    await asyncio.sleep(ELECTION_TIMEOUT + 6*TERM_TIMEOUT + 0.3)
 
     assert raft_node_2._state == RaftState.LEADER
-    assert raft_node_2._term == 20
+    assert raft_node_2._term == 16
     assert raft_node_2._voted_for == 42
 
+    assert raft_node_4._state == RaftState.FOLLOWER
+    assert raft_node_4._term == 16, "received heartbeat from LEADER"
+    assert raft_node_4._voted_for == 42 
+
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 20, "received heartbeat from LEADER"
+    assert raft_node_3._term == 15, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     # check that all logs are saved from previous LEADER
-    assert len(raft_node_1._log) == 1 + 3
-    assert raft_node_1._log[0].term == 0
-    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
-    assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
-    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
-    assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 5
-    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
-    assert raft_node_1._log[2].entry.value == 8
-    assert raft_node_1._log[3].term == 6
-    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
-    assert raft_node_1._log[3].entry.value == 9
-    assert raft_node_1._commit_index == 3
-
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
@@ -859,6 +860,21 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
+
+    assert len(raft_node_4._log) == 1 + 3
+    assert raft_node_4._log[0].term == 0
+    assert raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
+    assert raft_node_4._log[0].entry.value == 0
+    assert raft_node_4._log[1].term == 4
+    assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_4._log[1].entry.value == 7
+    assert raft_node_4._log[2].term == 5
+    assert raft_node_4._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_4._log[2].entry.value == 8
+    assert raft_node_4._log[3].term == 6
+    assert raft_node_4._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_4._log[3].entry.value == 9
+    assert raft_node_4._commit_index == 3
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
@@ -902,24 +918,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_2._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_2._log[4].entry.value == 13
     assert raft_node_2._commit_index == 4
-
-    assert len(raft_node_1._log) == 1 + 4
-    assert raft_node_1._log[0].term == 0
-    assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
-    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
-    assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 5
-    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
-    assert raft_node_1._log[2].entry.value == 8
-    assert raft_node_1._log[3].term == 6
-    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
-    assert raft_node_1._log[3].entry.value == 9
-    assert raft_node_1._log[4].term == 7
-    assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
-    assert raft_node_1._log[4].entry.value == 13
-    assert raft_node_1._commit_index == 4
-    
+  
     assert len(raft_node_3._log) == 1 + 4
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.value == 0
@@ -937,7 +936,26 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[4].entry.value == 13
     assert raft_node_3._commit_index == 4
 
+    assert len(raft_node_4._log) == 1 + 4
+    assert raft_node_4._log[0].term == 0
+    assert raft_node_4._log[0].entry.value == 0
+    assert raft_node_4._log[1].term == 4
+    assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_4._log[1].entry.value == 7
+    assert raft_node_4._log[2].term == 5
+    assert raft_node_4._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_4._log[2].entry.value == 8
+    assert raft_node_4._log[3].term == 6
+    assert raft_node_4._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_4._log[3].entry.value == 9
+    assert raft_node_4._log[4].term == 7
+    assert raft_node_4._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
+    assert raft_node_4._log[4].entry.value == 13
+    assert raft_node_4._commit_index == 4
+
     _logger.info("================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 ==================")
+
+    await asyncio.sleep(TERM_TIMEOUT)
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=7,
@@ -947,9 +965,9 @@ async def _unittest_raft_leader_changes() -> None:
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=raft_node_1._term,
+        term=raft_node_2._term,
         prev_log_index=2,  # index of top_2
-        prev_log_term=raft_node_1._log[2].term,
+        prev_log_term=raft_node_2._log[2].term,
         log_entry=new_entry,
     )
     metadata = pycyphal.presentation.ServiceRequestMetadata(
@@ -979,20 +997,19 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_2._commit_index == 3
 
     # check if the new entry is replicated in the follower nodes
-    assert len(raft_node_1._log) == 1 + 3
-    assert raft_node_1._log[0].term == 0
-    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
-    assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
-    assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
-    assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 5
-    assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
-    assert raft_node_1._log[2].entry.value == 8
-    assert raft_node_1._log[3].term == 7
-    assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
-    assert raft_node_1._log[3].entry.value == 10
-    assert raft_node_1._commit_index == 3
+    assert len(raft_node_4._log) == 1 + 3
+    assert raft_node_4._log[0].term == 0
+    assert raft_node_4._log[0].entry.value == 0
+    assert raft_node_4._log[1].term == 4
+    assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
+    assert raft_node_4._log[1].entry.value == 7
+    assert raft_node_4._log[2].term == 5
+    assert raft_node_4._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
+    assert raft_node_4._log[2].entry.value == 8
+    assert raft_node_4._log[3].term == 7
+    assert raft_node_4._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
+    assert raft_node_4._log[3].entry.value == 10
+    assert raft_node_4._commit_index == 3
 
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
@@ -1010,7 +1027,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._commit_index == 3
 
     
-    raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
+    raft_node_4.close()
     await asyncio.sleep(1)

@@ -205,7 +205,7 @@ class RaftNode:
         """
         # Reply false if term < self._term (§5.1)
         # (or if already voted for another candidate in this term)
-        if request.term < self._term or (self._voted_for is not None):
+        if request.term < self._term:
             _logger.info(
                 c["request_vote"]
                 + "Request vote request denied (term (%d) < self._term (%d) or already voted for another candidate in this term (%s))"
@@ -218,7 +218,8 @@ class RaftNode:
 
         # If voted_for is null or candidateId, and candidate’s log is at
         # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
-        elif self._voted_for is None or self._voted_for == client_node_id:
+        elif self._voted_for is None or self._voted_for == client_node_id or request.term > self._term:
+            self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
             # log comparison
             if self._log[request.last_log_index].term == request.last_log_term:
                 _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
@@ -231,18 +232,10 @@ class RaftNode:
             else:
                 _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
                 return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
-
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Request vote request denied (unknown reason)" + c["end_color"],
-            self._node.id,
-        )
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Current term: %d, Request term: %d" + c["end_color"],
-            self._node.id,
-            self._term,
-            request.term,
-        )
-        assert False, "Should not reach here!"
+        else:
+            _logger.info(c["request_vote"] + "Request vote request denied already voted for another candidate in this term (%s)" + c["end_color"],
+                         self._voted_for,)
+            return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
     async def _start_election(self) -> None:
         """
@@ -297,7 +290,10 @@ class RaftNode:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Became leader" + c["end_color"], self._node.id)
             self._change_state(RaftState.LEADER)
         else:
-            _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
+            _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed: Number of Votes - %d, Needed to win - %d " + c["end_color"], 
+                         self._node.id,
+                         number_of_votes,
+                         (number_of_nodes / 2) + 1)
             # If election fails, revert to follower
             self._voted_for = None
             self._change_state(RaftState.FOLLOWER)
