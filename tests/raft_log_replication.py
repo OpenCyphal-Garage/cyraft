@@ -1026,7 +1026,6 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.value == 10
     assert raft_node_3._commit_index == 3
 
-    
     raft_node_2.close()
     raft_node_3.close()
     raft_node_4.close()

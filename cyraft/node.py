@@ -203,39 +203,48 @@ class RaftNode:
             - the voted_for of the node
         the method will either grant or deny the vote.
         """
-        # Reply false if term < self._term (§5.1)
-        # (or if already voted for another candidate in this term)
+
+        vote_granted = None
+
+        """
+        If request.term is higher than self.term, then:
+         1. Switch to follower
+         2. Update term to new term
+         3. Reset voted_for
+        """
+        if request.term > self._term:
+            self._change_state(RaftState.FOLLOWER) # Our term is stale, so we can't serve as leader 
+            self._term = request.term
+            self._voted_for = None
+
+
         if request.term < self._term:
+            vote_granted = False
             _logger.info(
                 c["request_vote"]
-                + "Request vote request denied (term (%d) < self._term (%d) or already voted for another candidate in this term (%s))"
+                + "Request vote request denied (term (%d) < self._term (%d)"
                 + c["end_color"],
                 request.term,
                 self._term,
+            )
+        else:
+            vote_granted = (self._voted_for is None or self._voted_for == client_node_id) and self._log[request.last_log_index].term == request.last_log_term
+
+            if vote_granted:
+                self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
+                self._voted_for = client_node_id
+            else:
+             _logger.info(
+                c["request_vote"]
+                + "Request vote request denied log is not up to date (self._log.term (%d) != request.last_log_term (%d) or already voted for another candidate in this term (%s))"
+                + c["end_color"],
+                self._log[request.last_log_index].term,
+                request.last_log_term,
                 self._voted_for,
             )
-            return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
-        # If voted_for is null or candidateId, and candidate’s log is at
-        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
-        elif self._voted_for is None or self._voted_for == client_node_id or request.term > self._term:
-            self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
-            # log comparison
-            if self._log[request.last_log_index].term == request.last_log_term:
-                _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
-                self._voted_for = client_node_id
-                self._term = request.term
-                return sirius_cyber_corp.RequestVote_1.Response(
-                    term=self._term,
-                    vote_granted=True,
-                )
-            else:
-                _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
-                return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
-        else:
-            _logger.info(c["request_vote"] + "Request vote request denied already voted for another candidate in this term (%s)" + c["end_color"],
-                         self._voted_for,)
-            return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
+        return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=vote_granted)
+
 
     async def _start_election(self) -> None:
         """
