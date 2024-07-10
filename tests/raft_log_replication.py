@@ -816,7 +816,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     raft_node_1.close() # Simulation of the disappearance of a leader from a cluster
 
-    await asyncio.sleep(ELECTION_TIMEOUT + 6*TERM_TIMEOUT + 0.3)
+    await asyncio.sleep(ELECTION_TIMEOUT + 6*TERM_TIMEOUT + 0.1) # Six terms are needed for complete replication of logs from the leader to the followers.
 
     assert raft_node_2._state == RaftState.LEADER
     assert raft_node_2._term == 16
