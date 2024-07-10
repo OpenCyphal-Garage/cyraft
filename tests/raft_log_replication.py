@@ -627,7 +627,7 @@ async def _unittest_raft_log_replication() -> None:
   | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 | top_4 <= 17 |     Name <= value
   |____________|____________|____________|____________|_____________|
 
-   Step 3: Replace Log Entry 3 with a New Entry fom LEADER Node 42
+   Step 3: Replace Log Entry 3 with a New Entry from LEADER Node 42
    ____________
   | 3          |     Log index
   | 7          |     Log term
@@ -809,14 +809,15 @@ async def _unittest_raft_leader_changes() -> None:
     _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
     # New LEADER => raft_node_2
-    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT + 1
     raft_node_3.election_timeout = ELECTION_TIMEOUT + 2
-    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2
+    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2.1
     await asyncio.sleep(TERM_TIMEOUT)
 
     raft_node_1.close() # Simulation of the disappearance of a leader from a cluster
 
-    await asyncio.sleep(ELECTION_TIMEOUT + 6*TERM_TIMEOUT + 0.1) # Six terms are needed for complete replication of logs from the leader to the followers.
+    await asyncio.sleep(ELECTION_TIMEOUT + 8*TERM_TIMEOUT + 0.1) # Six terms are needed for complete replication of logs from the leader to the followers.
 
     assert raft_node_2._state == RaftState.LEADER
     assert raft_node_2._term == 16
