@@ -666,11 +666,11 @@ async def _unittest_raft_leader_changes() -> None:
     os.environ["UAVCAN__NODE__ID"] = "43"
     raft_node_3 = RaftNode()
     raft_node_3.term_timeout = TERM_TIMEOUT
-    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 2
     os.environ["UAVCAN__NODE__ID"] = "44"
     raft_node_4 = RaftNode()
     raft_node_4.term_timeout = TERM_TIMEOUT
-    raft_node_4.election_timeout = ELECTION_TIMEOUT + 1
+    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2
 
     # make all part of the same cluster
     cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id, raft_node_4._node.id]
@@ -809,15 +809,12 @@ async def _unittest_raft_leader_changes() -> None:
     _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
     # New LEADER => raft_node_2
-    raft_node_1.election_timeout = ELECTION_TIMEOUT
-    raft_node_2.election_timeout = ELECTION_TIMEOUT + 1
-    raft_node_3.election_timeout = ELECTION_TIMEOUT + 2
-    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2.1
+
     await asyncio.sleep(TERM_TIMEOUT)
 
     raft_node_1.close() # Simulation of the disappearance of a leader from a cluster
 
-    await asyncio.sleep(ELECTION_TIMEOUT + 8*TERM_TIMEOUT + 0.1) # Six terms are needed for complete replication of logs from the leader to the followers.
+    await asyncio.sleep(ELECTION_TIMEOUT + 8*TERM_TIMEOUT + 0.1) # Eight terms are needed for complete replication of logs from the leader to the followers.
 
     assert raft_node_2._state == RaftState.LEADER
     assert raft_node_2._term == 16
