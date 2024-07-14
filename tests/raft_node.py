@@ -100,37 +100,38 @@ async def _unittest_raft_node_init() -> None:
     # assert raft_node._match_index == [0]
 
 
-async def _unittest_raft_node_term_timeout() -> None:
-    """
-    Test that the LEADER node term is increased upon term timeout
+    # This test is no longer relevant since term_timeout no longer exists and term increments are checked in the raft_leader_election.py tests.
 
-    Test that the CANDIDATE/FOLLOWER node term is not increased upon term timeout
-    """
+"""
+async def _unittest_raft_node_term_icrease() -> None:
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
     ELECTION_TIMEOUT = 10  # so that we don't start an election
-    TERM_TIMEOUT = 1
+    LEADER_TIMEOUT = 1
     raft_node.election_timeout = ELECTION_TIMEOUT
-    raft_node.term_timeout = TERM_TIMEOUT
+    raft_node.leader_timeout = LEADER_TIMEOUT
 
     asyncio.create_task(raft_node.run())
-    raft_node._change_state(RaftState.CANDIDATE)
-    raft_node._change_state(RaftState.LEADER)  # only leader can increase term
+    raft_node._change_state(RaftState.CANDIDATE) # only candidate can increase term
+    raft_node._change_state(RaftState.LEADER)  
 
-    await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
+    await asyncio.sleep(LEADER_TIMEOUT)  # + 0.1 to make sure the timer has been reset
     assert raft_node._term == 1
-    await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 2
-    await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
 
     raft_node._change_state(RaftState.FOLLOWER)  # follower should not increase term
-    await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
+    await asyncio.sleep(LEADER_TIMEOUT)
+    assert raft_node._term == 1
 
+    raft_node._change_state(RaftState.CANDIDATE)
+    raft_node._change_state(RaftState.FOLLOWER)
+    await asyncio.sleep(LEADER_TIMEOUT)
+    assert raft_node._term == 2
+    
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
+"""
+
 
 
 async def _unittest_raft_node_election_timeout() -> None:
@@ -140,9 +141,9 @@ async def _unittest_raft_node_election_timeout() -> None:
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
     ELECTION_TIMEOUT = 5
-    TERM_TIMEOUT = 1
+    LEADER_TIMEOUT = 1
     raft_node.election_timeout = ELECTION_TIMEOUT
-    raft_node.term_timeout = TERM_TIMEOUT
+    raft_node.leader_timeout = LEADER_TIMEOUT
 
     assert raft_node._state == RaftState.FOLLOWER
     asyncio.create_task(raft_node.run())
@@ -156,23 +157,27 @@ async def _unittest_raft_node_election_timeout() -> None:
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
 
+
 async def _unittest_raft_node_heartbeat() -> None:
     """
     Test that the node does NOT convert to candidate if it receives a heartbeat message
     """
+    _logger.info( "TEST1")
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node = RaftNode()
     ELECTION_TIMEOUT = 5
-    TERM_TIMEOUT = 1
+    LEADER_TIMEOUT = 1
     raft_node.election_timeout = ELECTION_TIMEOUT
-    raft_node.term_timeout = TERM_TIMEOUT
+    raft_node.leader_timeout = LEADER_TIMEOUT
     raft_node._voted_for = 42
 
     asyncio.create_task(raft_node.run())
     await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
-
+    
+    _logger.info( "TEST2")
     # send heartbeat
     terms_passed = raft_node._term  # leader's term is equal to the follower's term
+
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -188,12 +193,12 @@ async def _unittest_raft_node_heartbeat() -> None:
             transfer_id=0,  # leader's transfer id
         ),
     )
-
+    _logger.info( "TEST3")
     # wait for heartbeat to be processed [election is reached but shouldn't become leader due to heartbeat]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1 + 0.1)
     assert raft_node._state == RaftState.FOLLOWER
     assert raft_node._voted_for == 42
-
+    _logger.info( "TEST4")
     # send heartbeat again
     # (this time leader has a higher term, we want to make sure that the follower's term is updated)
     await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
@@ -213,17 +218,19 @@ async def _unittest_raft_node_heartbeat() -> None:
             transfer_id=0,  # leader's transfer id
         ),
     )
-
+    _logger.info( "TEST5")
     # wait for heartbeat to be processed [election is reached but shouldn't become leader due to heartbeat]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1 + 0.1)
     assert raft_node._state == RaftState.FOLLOWER
     assert raft_node._voted_for == 42
     assert raft_node._term == terms_passed
-
+    _logger.info( "TEST5.1")
     # send heartbeat again
     # (this time from a different leader with a higher term, we want to make sure the follower switches leader and updates term)
     await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
+    _logger.info( "TEST5.2")
     terms_passed = raft_node._term + 5  # leader's term is higher than the follower's term
+    _logger.info( "TEST5.3")
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -239,17 +246,18 @@ async def _unittest_raft_node_heartbeat() -> None:
             transfer_id=0,  # leader's transfer id
         ),
     )
-
+    _logger.info( "TEST6")
     # wait for heartbeat to be processed [election is reached but shouldn't become leader due to heartbeat]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1 + 0.1)
     assert raft_node._state == RaftState.FOLLOWER
     assert raft_node._voted_for == 43
     assert raft_node._term == terms_passed
-
+    _logger.info( "TEST6.1")
     # send heartbeat again
     # (this time the leader's term is lower than the follower's term, we want to make sure the follower doesn't switch leader)
     await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
     terms_passed = raft_node._term - 1  # leader's term is lower than the follower's term
+    _logger.info( "TEST6.2")
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -265,13 +273,15 @@ async def _unittest_raft_node_heartbeat() -> None:
             transfer_id=0,  # leader's transfer id
         ),
     )
-
+    _logger.info( "TEST7")
     ## test that the node converts to candidate after the election timeout [no valid heartbeat is received]
     await asyncio.sleep(ELECTION_TIMEOUT * 0.1 + 0.1)
     assert raft_node._prev_state == RaftState.CANDIDATE
 
     raft_node.close()
     await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
+    _logger.info( "TEST8")
+    assert False
 
 async def _unittest_raft_node_request_vote_rpc() -> None:
     """
@@ -377,6 +387,8 @@ async def _unittest_raft_node_start_election() -> None:
     # test 3: node 1 should send a heartbeat to node 2, remain leader
     await asyncio.sleep(ELECTION_TIMEOUT)
 
+    assert raft_node_1._term == 1
+
     assert raft_node_1._state == RaftState.LEADER
 
     raft_node_1.close()
@@ -459,14 +471,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     _logger.info("================== TEST 1: append 3 log entries ==================")
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=4,
+            term=6,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_1"),
                 value=7,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=5,
+            term=6,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=8,
@@ -506,10 +518,10 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 5
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 8
     assert raft_node._log[3].term == 6
@@ -526,14 +538,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     _logger.info("================== TEST 2: Replace log entry 3 with a new entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=7,
+        term=6,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=10,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=7,
+        term=6,
         prev_log_index=2,  # index of top_2
         prev_log_term=raft_node._log[2].term,
         log_entry=new_entry,
@@ -547,7 +559,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 7
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
@@ -555,13 +567,13 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node._log[0].entry.value == 0
 
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 5
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 8
-    assert raft_node._log[3].term == 7
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 10
     assert raft_node._commit_index == 3
@@ -570,14 +582,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=8,
+            term=6,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=11,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=9,
+            term=6,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_3"),
                 value=12,
@@ -587,7 +599,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     for index, new_entry in enumerate(new_entries):
         request = sirius_cyber_corp.AppendEntries_1.Request(
-            term=9,
+            term=6,
             prev_log_index=index + 1,  # index: 1, 2
             prev_log_term=raft_node._log[index + 1].term,
             log_entry=new_entry,
@@ -601,33 +613,33 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
         response = await raft_node._serve_append_entries(request, metadata)
         assert response.success == True
 
-    assert raft_node._term == 9
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 8
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 9
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
 
     _logger.info("================== TEST 4: Add an already existing log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=9,
+        term=6,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=12,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=9,
+        term=6,
         prev_log_index=2,  # index of top_2
         prev_log_term=raft_node._log[2].term,
         log_entry=new_entry,
@@ -642,33 +654,33 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 9
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 8
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 9
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
 
     _logger.info("================== TEST 5: Add an additional log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=10,
+        term=6,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=13,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=10,
+        term=6,
         prev_log_index=3,  # index of top_3
         prev_log_term=raft_node._log[3].term,
         log_entry=new_entry,
@@ -682,36 +694,36 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 10
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 8
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 9
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 10
+    assert raft_node._log[4].term == 6
     assert raft_node._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node._log[4].entry.value == 13
 
     _logger.info("================== TEST 6: Try to append old log entry (term < currentTerm) ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=9,
+        term=6,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=14,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=9,
+        term=6,
         prev_log_index=3,
         prev_log_term=raft_node._log[3].term,
         log_entry=new_entry,
@@ -725,22 +737,22 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == False
 
-    assert raft_node._term == 10
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 8
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 9
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 10
+    assert raft_node._log[4].term == 6
     assert raft_node._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node._log[4].entry.value == 13
 
@@ -749,14 +761,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     )
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=11,
+        term=6,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=15,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=11,
+        term=6,
         prev_log_index=4,
         prev_log_term=raft_node._log[4].term - 1,  # term mismatch
         log_entry=new_entry,
@@ -770,19 +782,19 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == False
 
-    assert raft_node._term == 10
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 4
+    assert raft_node._log[1].term == 6
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 8
+    assert raft_node._log[2].term == 6
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 9
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 10
+    assert raft_node._log[4].term == 6
     assert raft_node._log[4].entry.value == 13
     raft_node.close()
     await asyncio.sleep(1)

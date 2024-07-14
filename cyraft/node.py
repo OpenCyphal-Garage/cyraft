@@ -31,7 +31,7 @@ c = {
     "append_entries": "\033[33m",  # YELLOW
 }
 
-TERM_TIMEOUT = 0.5  # seconds
+LEADER_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
 
@@ -57,11 +57,12 @@ class RaftNode:
 
         self._election_timer: asyncio.TimerHandle
         self._next_election_timeout: float
-        self._term_timer: asyncio.TimerHandle
-        self._next_term_timeout: float
+        self._leader_timer: asyncio.TimerHandle
+        self._next_leader_timeout: float
+
 
         self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
-        self._term_timeout = TERM_TIMEOUT
+        self._leader_timeout = LEADER_TIMEOUT
         # assert (
         #     self._term_timeout < self._election_timeout / 2
         # ), "Term timeout must be less than half of election timeout"
@@ -125,15 +126,15 @@ class RaftNode:
             raise ValueError("Election timeout must be greater than 0")
 
     @property
-    def term_timeout(self) -> float:
-        return self._term_timeout
+    def leader_timeout(self) -> float:
+        return self._leader_timeout
 
-    @term_timeout.setter
-    def term_timeout(self, timeout: float) -> None:
+    @leader_timeout.setter
+    def leader_timeout(self, timeout: float) -> None:
         if timeout > 0:
-            self._term_timeout = timeout
+            self._leader_timeout = timeout
         else:
-            raise ValueError("Term timeout must be greater than 0")
+            raise ValueError("Leader timeout must be greater than 0")
 
     def add_remote_node(self, remote_node_id: int | list[int]) -> None:
         """
@@ -647,10 +648,10 @@ class RaftNode:
         elif self._state == RaftState.LEADER:
             assert self._prev_state == RaftState.CANDIDATE, "Invalid state change 3"
             
-            # Cancel the election timeout (if it exists), and schedule a new term timeout.
+            # Cancel the election timeout (if it exists), and schedule a new leader timeout.
             if hasattr(self, "_election_timer"):
                 self._election_timer.cancel()
-            self._reset_term_timeout()
+            self._reset_leader_timeout()
         else:
             assert False, "Invalid state change"
 
@@ -668,17 +669,17 @@ class RaftNode:
             self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
 
-    def _reset_term_timeout(self) -> None:
+    def _reset_leader_timeout(self) -> None:
         """
-        Once a term timeout is reached, another term callback is scheduled.
+        Once a leader timeout is reached, another leader callback is scheduled.
         """
-        assert self._state == RaftState.LEADER, "Only leaders should reset the term timeout"
-        _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
+        assert self._state == RaftState.LEADER, "Only leaders should reset the leader timeout"
+        _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting leader timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_term_timeout = loop.time() + self._term_timeout
-        if hasattr(self, "_term_timer"):
+        self._next_leader_timeout = loop.time() + self._leader_timeout
+        if hasattr(self, "_leader_timer"):
             self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
+        self._leader_timer = loop.call_at(self._next_leader_timeout, lambda: asyncio.create_task(self._on_leader_timeout()))
 
     async def _on_election_timeout(self) -> None:
         """
@@ -690,21 +691,19 @@ class RaftNode:
         self._change_state(RaftState.CANDIDATE)
         await self._start_election()
 
-    async def _on_term_timeout(self) -> None:
+    async def _on_leader_timeout(self) -> None:
         """
-        This function is called upon term timeout.
+        This function is called upon leader timeout.
         If the node is a leader, it will do either of the following:
         - if the remote node log is up to date, it will send a heartbeat
         - if the remote node log is not up to date, it will send an append entries request
         """
         _logger.info(
-            c["raft_logic"] + "Node ID: %d -- Term timeout reached, new term: %d" + c["end_color"],
+            c["raft_logic"] + "Node ID: %d -- leader timeout reached" + c["end_color"],
             self._node.id,
-            self._term,
         )
-        assert self._state == RaftState.LEADER, "Only leaders have a term timeout"
-        self._term += 1
-        self._reset_term_timeout()
+        assert self._state == RaftState.LEADER, "Only leaders have a leader timeout"
+        self._reset_leader_timeout()
         for remote_node_index, remote_next_index in enumerate(self._next_index):
             if self._state != RaftState.LEADER:
                 # if the node is no longer a leader, stop sending heartbeats
@@ -755,9 +754,9 @@ class RaftNode:
 
         # Schedule term timeout (only for leader)
         if self._state == RaftState.LEADER:
-            self._next_term_timeout = loop.time() + self._term_timeout
+            self._next_term_timeout = loop.time() + self._leader_timeout
             self._term_timer = loop.call_at(
-                self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout())
+                self._next_term_timeout, lambda: asyncio.create_task(self._on_leader_timeout())
             )
 
     def close(self) -> None:

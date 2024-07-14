@@ -97,7 +97,7 @@ async def _unittest_raft_fsm_1() -> None:
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
+    LEADER_TIMEOUT = 0.5
     ELECTION_TIMEOUT = 5
 
     os.environ["UAVCAN__NODE__ID"] = "41"
