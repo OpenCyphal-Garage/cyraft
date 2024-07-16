@@ -31,7 +31,7 @@ c = {
     "append_entries": "\033[33m",  # YELLOW
 }
 
-LEADER_TIMEOUT = 0.5  # seconds
+TERM_TIMEOUT = 0.5  # seconds
 ELECTION_TIMEOUT = 5  # seconds
 
 
@@ -57,12 +57,11 @@ class RaftNode:
 
         self._election_timer: asyncio.TimerHandle
         self._next_election_timeout: float
-        self._leader_timer: asyncio.TimerHandle
-        self._next_leader_timeout: float
-
+        self._term_timer: asyncio.TimerHandle
+        self._next_term_timeout: float
 
         self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
-        self._leader_timeout = LEADER_TIMEOUT
+        self._term_timeout = TERM_TIMEOUT
         # assert (
         #     self._term_timeout < self._election_timeout / 2
         # ), "Term timeout must be less than half of election timeout"
@@ -126,15 +125,15 @@ class RaftNode:
             raise ValueError("Election timeout must be greater than 0")
 
     @property
-    def leader_timeout(self) -> float:
-        return self._leader_timeout
+    def term_timeout(self) -> float:
+        return self._term_timeout
 
-    @leader_timeout.setter
-    def leader_timeout(self, timeout: float) -> None:
+    @term_timeout.setter
+    def term_timeout(self, timeout: float) -> None:
         if timeout > 0:
-            self._leader_timeout = timeout
+            self._term_timeout = timeout
         else:
-            raise ValueError("Leader timeout must be greater than 0")
+            raise ValueError("Term timeout must be greater than 0")
 
     def add_remote_node(self, remote_node_id: int | list[int]) -> None:
         """
@@ -232,7 +231,7 @@ class RaftNode:
             vote_granted = (self._voted_for is None or self._voted_for == client_node_id) and self._log[request.last_log_index].term == request.last_log_term
 
             if vote_granted:
-                self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
+                #self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
                 self._voted_for = client_node_id
             else:
              _logger.info(
@@ -259,6 +258,8 @@ class RaftNode:
         _logger.info(c["raft_logic"] + "Node ID: %d -- Starting election" + c["end_color"], self._node.id)
         # Increment currentTerm
         self._term += 1
+
+        _logger.info(c["raft_logic"] + "Node ID: %d -- New term - %d" + c["end_color"], self._node.id, self._term)
         # Vote for self
         self._voted_for = self._node.id
         # Send RequestVote RPCs to all other servers
@@ -396,11 +397,14 @@ class RaftNode:
         This method is called when the append entries request passes all checks and can be appended to the log.
         """
         assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
-
-        # If an existing entry conflicts with a new one (same index but different terms),
-        # delete the existing entry and all that follow it (§5.3)
         new_index = request.prev_log_index + 1
         _logger.info(c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"], self._node.id, new_index)
+
+        #a leader never overwrites or deletes entries in its log; it only appends new entries
+        """
+        # If an existing entry conflicts with a new one (same index but different terms),
+        # delete the existing entry and all that follow it (§5.3)
+
         for log_index, log_entry in enumerate(self._log[1:]):
             if (
                 log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
@@ -415,6 +419,8 @@ class RaftNode:
                 del self._log[log_index + 1 :]
                 self._commit_index = log_index
                 break
+        """
+
 
         # Append any new entries not already in the log
         # [in our implementation only a single entry is sent at a time]
@@ -427,12 +433,20 @@ class RaftNode:
         ):  # log comparison can be done better, once this is fixed: https://github.com/OpenCyphal/pycyphal/issues/297
             append_new_entry = False
             _logger.info(c["append_entries"] + "Node ID: %d -- entry already exists" + c["end_color"], self._node.id)
+   
         # 2. If it does not exist, append it
         if append_new_entry:
             if new_index < len(self._log):
-                _logger.info("new_index < len(self._log): %s", new_index < len(self._log))
+                _logger.info("new_index < len(self._log): %s (%s < %s)", 
+                                new_index < len(self._log), 
+                                new_index, 
+                                len(self._log)
+                                )   
                 _logger.info(
-                    "self._log[new_index] == request.log_entry[0]: %s", self._log[new_index] == request.log_entry[0]
+                    "self._log[new_index] == request.log_entry[0]: %s (%s == %s)", 
+                    self._log[new_index] == request.log_entry[0], 
+                    self._log[new_index],
+                    request.log_entry[0]
                 )
                 assert False
             self._log.append(request.log_entry[0])
@@ -498,7 +512,17 @@ class RaftNode:
             request.prev_log_term,
         )
         assert len(request.log_entry) == 0, "Heartbeat should not have a log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -564,7 +588,17 @@ class RaftNode:
             log_entry=self._log[remote_next_index],
         )
         assert len(request.log_entry) == 1, "Append entry should have a (single) log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -648,10 +682,10 @@ class RaftNode:
         elif self._state == RaftState.LEADER:
             assert self._prev_state == RaftState.CANDIDATE, "Invalid state change 3"
             
-            # Cancel the election timeout (if it exists), and schedule a new leader timeout.
+            # Cancel the election timeout (if it exists), and schedule a new term timeout.
             if hasattr(self, "_election_timer"):
                 self._election_timer.cancel()
-            self._reset_leader_timeout()
+            self._reset_term_timeout()
         else:
             assert False, "Invalid state change"
 
@@ -662,24 +696,32 @@ class RaftNode:
         assert self._state == RaftState.FOLLOWER, "Only followers should reset the election timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_election_timeout = loop.time() + self._election_timeout
+        """
+        When on_election_timeout is called, the state is changed to candidate and a new election is started by calling start_election function. 
+        In the start_election function, the election timeout is reset using self._next_election_timeout = loop.time() + self._election_timeout. 
+        If loop.time() returns a value greater than or equal to self._next_election_timeout, then the election timeout will be set to a time in the past, 
+        causing the timeout to trigger immediately.
+        To fix this issue, added a small offset to the current time when resetting the election timeout
+        """
+        self._next_election_timeout = loop.time() + self._election_timeout + 0.01
         if hasattr(self, "_election_timer"):
+            _logger.info(c["raft_logic"] + "Node ID: %d -- Canceling the alredy existed election timer" + c["end_color"], self._node.id)
             self._election_timer.cancel()
-        self._election_timer = loop.call_at(
-            self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
+        self._election_timer = loop.call_later(
+            self._election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
 
-    def _reset_leader_timeout(self) -> None:
+    def _reset_term_timeout(self) -> None:
         """
-        Once a leader timeout is reached, another leader callback is scheduled.
+        Once a term timeout is reached, another term callback is scheduled.
         """
-        assert self._state == RaftState.LEADER, "Only leaders should reset the leader timeout"
-        _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting leader timeout" + c["end_color"], self._node.id)
+        assert self._state == RaftState.LEADER, "Only leaders should reset the term timeout"
+        _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_leader_timeout = loop.time() + self._leader_timeout
-        if hasattr(self, "_leader_timer"):
+        self._next_term_timeout = loop.time() + self._term_timeout
+        if hasattr(self, "_term_timer"):
             self._term_timer.cancel()
-        self._leader_timer = loop.call_at(self._next_leader_timeout, lambda: asyncio.create_task(self._on_leader_timeout()))
+        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
 
     async def _on_election_timeout(self) -> None:
         """
@@ -691,19 +733,20 @@ class RaftNode:
         self._change_state(RaftState.CANDIDATE)
         await self._start_election()
 
-    async def _on_leader_timeout(self) -> None:
+    async def _on_term_timeout(self) -> None:
         """
-        This function is called upon leader timeout.
+        This function is called upon term timeout.
         If the node is a leader, it will do either of the following:
         - if the remote node log is up to date, it will send a heartbeat
         - if the remote node log is not up to date, it will send an append entries request
         """
         _logger.info(
-            c["raft_logic"] + "Node ID: %d -- leader timeout reached" + c["end_color"],
+            c["raft_logic"] + "Node ID: %d -- Term timeout reached, new term: %d" + c["end_color"],
             self._node.id,
+            self._term,
         )
-        assert self._state == RaftState.LEADER, "Only leaders have a leader timeout"
-        self._reset_leader_timeout()
+        assert self._state == RaftState.LEADER, "Only leaders have a term timeout"
+        self._reset_term_timeout()
         for remote_node_index, remote_next_index in enumerate(self._next_index):
             if self._state != RaftState.LEADER:
                 # if the node is no longer a leader, stop sending heartbeats
@@ -754,9 +797,9 @@ class RaftNode:
 
         # Schedule term timeout (only for leader)
         if self._state == RaftState.LEADER:
-            self._next_term_timeout = loop.time() + self._leader_timeout
+            self._next_term_timeout = loop.time() + self._term_timeout
             self._term_timer = loop.call_at(
-                self._next_term_timeout, lambda: asyncio.create_task(self._on_leader_timeout())
+                self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout())
             )
 
     def close(self) -> None:
