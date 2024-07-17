@@ -527,20 +527,6 @@ async def _unittest_raft_log_replication() -> None:
   | 0          | 4          | 5          | 6          | 7           |     Log term
   | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 | top_4 <= 17 |     Name <= value
   |____________|____________|____________|____________|_____________|
-
-   Step 3: Replace Log Entry 3 with a New Entry from LEADER Node 42
-   ____________
-  | 3          |     Log index
-  | 7          |     Log term
-  | top_3 <= 10|     Name <= value
-  |____________|
-
-  Result:
-   ____________ ____________ ____________ _____________
-  | 0          | 1          | 2          | 3           |     Log index
-  | 0          | 4          | 5          | 7           |     Log term
-  | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 10 |     Name <= value
-  |____________|____________|____________|_____________|
   
 """
 

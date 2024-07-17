@@ -231,7 +231,7 @@ class RaftNode:
             vote_granted = (self._voted_for is None or self._voted_for == client_node_id) and self._log[request.last_log_index].term == request.last_log_term
 
             if vote_granted:
-                #self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
+                self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
                 self._voted_for = client_node_id
             else:
              _logger.info(
