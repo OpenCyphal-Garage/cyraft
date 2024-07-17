@@ -30,43 +30,43 @@ all nodes.
  Step 1: Append 3 log entries
    ____________ ____________ ____________ ____________
   | 0          | 1          | 2          | 3          |     Log index
-  | 0          | 4          | 5          | 6          |     Log term
+  | 0          | 1          | 1          | 1          |     Log term
   | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 |     Name <= value
   |____________|____________|____________|____________|
 
 
  Step 2: Add an already existing log entry
    ____________
-  | 3          |     Log index
-  | 9          |     Log term
+  | 4          |     Log index
+  | 1          |     Log term
   | top_3 <= 12|     Name <= value
   |____________|
 
  Step 3: Add an additional log entry
    ____________
-  | 4          |     Log index
-  | 10         |     Log term
+  | 5          |     Log index
+  | 1          |     Log term
   | top_4 <= 13|     Name <= value
   |____________|
 
  Result:
-   ____________ ____________ ____________ ____________ ____________
-  | 0          | 1          | 2          | 3          | 4          |     Log index
-  | 0          | 4          | 8          | 9          | 10         |     Log term
-  | empty <= 0 | top_1 <= 7 | top_2 <= 10| top_3 <= 11| top_4 <= 13|     Name <= value
-  |____________|____________|____________|____________|____________|
+   ____________ ____________ ____________ ____________ ____________ ____________
+  | 0          | 1          | 2          | 3          | 4          | 5          |     Log index
+  | 0          | 1          | 1          | 1          | 1          | 1          |     Log term
+  | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 | top_3 <= 12| top_4 <= 13|    Name <= value
+  |____________|____________|____________|____________|____________|____________|
 
  Step 4: Try to append old log entry (term < currentTerm)
    ____________
-  | 4          |     Log index
-  | 9          |     Log term
+  | 5          |     Log index
+  | 0          |     Log term
   | top_4 <= 14|     Name <= value
   |____________|
 
  Step 5: Try to append valid log entry, however entry at prev_log_index term does not match
    ____________
-  | 4          |     Log index
-  | 11         |     Log term
+  | 5          |     Log index
+  | 1          |     Log term
   | top_4 <= 15|     Name <= value
   |____________|
 """
@@ -517,14 +517,14 @@ async def _unittest_raft_log_replication() -> None:
 
    ____________ ____________ ____________ ____________
   | 0          | 1          | 2          | 3          |     Log index
-  | 0          | 4          | 5          | 6          |     Log term
+  | 0          | 1          | 1          | 1          |     Log term
   | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 |     Name <= value
   |____________|____________|____________|____________|
 
   Step 2: Leadership Change to Node 42 and Add New Entry 
    ____________ ____________ ____________ ____________ _____________
   | 0          | 1          | 2          | 3          | 4           |     Log index
-  | 0          | 4          | 5          | 6          | 7           |     Log term
+  | 0          | 1          | 1          | 1          | 2           |     Log term
   | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 | top_4 <= 17 |     Name <= value
   |____________|____________|____________|____________|_____________|
   

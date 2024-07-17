@@ -400,28 +400,6 @@ class RaftNode:
         new_index = request.prev_log_index + 1
         _logger.info(c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"], self._node.id, new_index)
 
-        #a leader never overwrites or deletes entries in its log; it only appends new entries
-        """
-        # If an existing entry conflicts with a new one (same index but different terms),
-        # delete the existing entry and all that follow it (§5.3)
-
-        for log_index, log_entry in enumerate(self._log[1:]):
-            if (
-                log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
-            ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
-                    self._node.id,
-                    log_index + 1,
-                )
-                number_of_entries_to_delete = len(self._log) - (log_index + 1)
-                self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
-                del self._log[log_index + 1 :]
-                self._commit_index = log_index
-                break
-        """
-
-
         # Append any new entries not already in the log
         # [in our implementation only a single entry is sent at a time]
         # 1. Check if the entry already exists
@@ -696,14 +674,6 @@ class RaftNode:
         assert self._state == RaftState.FOLLOWER, "Only followers should reset the election timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        """
-        When on_election_timeout is called, the state is changed to candidate and a new election is started by calling start_election function. 
-        In the start_election function, the election timeout is reset using self._next_election_timeout = loop.time() + self._election_timeout. 
-        If loop.time() returns a value greater than or equal to self._next_election_timeout, then the election timeout will be set to a time in the past, 
-        causing the timeout to trigger immediately.
-        To fix this issue, added a small offset to the current time when resetting the election timeout
-        """
-        self._next_election_timeout = loop.time() + self._election_timeout + 0.01
         if hasattr(self, "_election_timer"):
             _logger.info(c["raft_logic"] + "Node ID: %d -- Canceling the alredy existed election timer" + c["end_color"], self._node.id)
             self._election_timer.cancel()
@@ -718,10 +688,11 @@ class RaftNode:
         assert self._state == RaftState.LEADER, "Only leaders should reset the term timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_term_timeout = loop.time() + self._term_timeout
         if hasattr(self, "_term_timer"):
             self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
+        self._term_timer = loop.call_later(
+            self._term_timeout, lambda: asyncio.create_task(self._on_term_timeout())
+        )
 
     async def _on_election_timeout(self) -> None:
         """
