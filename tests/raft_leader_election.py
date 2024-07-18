@@ -149,19 +149,17 @@ async def _unittest_raft_fsm_1() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.LEADER
-    assert (
-        raft_node_1._term == 2
-    ), "+1 due to starting election, +1 due to term timeout (this last one is not guaranteed?)"
+    assert raft_node_1._term == 1
     assert raft_node_1._voted_for == 41
 
     assert raft_node_2._prev_state == RaftState.FOLLOWER
     assert raft_node_2._state == RaftState.FOLLOWER
-    assert raft_node_2._term == 2, "received heartbeat from LEADER"
+    assert raft_node_2._term == 1, "received heartbeat from LEADER"
     assert raft_node_2._voted_for == 41
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 2, "received heartbeat from LEADER"
+    assert raft_node_3._term == 1, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 41
 
     assert raft_node_1._term >= raft_node_2._term, "LEADER term should be higher (or equal) than FOLLOWER"
@@ -173,17 +171,17 @@ async def _unittest_raft_fsm_1() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.LEADER
-    assert raft_node_1._term == 12, "+ 10 due to term timeout"
+    assert raft_node_1._term == 1
     assert raft_node_1._voted_for == 41
 
     assert raft_node_2._prev_state == RaftState.FOLLOWER
     assert raft_node_2._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 12, "received heartbeat from LEADER"
+    assert raft_node_1._term == 1, "received heartbeat from LEADER"
     assert raft_node_2._voted_for == 41
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 12, "received heartbeat from LEADER"
+    assert raft_node_1._term == 1, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 41
 
     assert raft_node_1._term >= raft_node_2._term
@@ -246,17 +244,17 @@ async def _unittest_raft_fsm_2():
 
     # assert raft_node_1._prev_state == RaftState.LEADER
     assert raft_node_1._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 12, "received heartbeat from LEADER"
+    assert raft_node_1._term == 2, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     # assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
-    assert raft_node_2._term == 12, "+ 10 due to term timeout"
+    assert raft_node_2._term == 2, "+ 10 due to term timeout"
     assert raft_node_2._voted_for == 42
 
     # assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 12, "received heartbeat from LEADER"
+    assert raft_node_3._term == 2, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term
@@ -320,17 +318,17 @@ async def _unittest_raft_fsm_3():
 
     # assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 11, "received heartbeat from LEADER"
+    assert raft_node_1._term == 1, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     # assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
-    assert raft_node_2._term == 11, "+ 10 due to term timeout"
+    assert raft_node_2._term == 1
     assert raft_node_2._voted_for == 42
 
     # assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 11, "received heartbeat from LEADER"
+    assert raft_node_3._term == 1, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term
@@ -396,17 +394,17 @@ async def _unittest_raft_fsm_4():
 
     assert raft_node_1._prev_state == RaftState.FOLLOWER
     assert raft_node_1._state == RaftState.FOLLOWER
-    assert raft_node_1._term == 12, "received heartbeat from LEADER"
+    assert raft_node_1._term == 2, "received heartbeat from LEADER"
     assert raft_node_1._voted_for == 42
 
     assert raft_node_2._prev_state == RaftState.CANDIDATE
     assert raft_node_2._state == RaftState.LEADER
-    assert raft_node_2._term == 12, "+ 1 due to election timeout, + 10 due to term timeout"
+    assert raft_node_2._term == 2, "+ 1 due to election timeout"
     assert raft_node_2._voted_for == 42
 
     assert raft_node_3._prev_state == RaftState.FOLLOWER
     assert raft_node_3._state == RaftState.FOLLOWER
-    assert raft_node_3._term == 12, "received heartbeat from LEADER"
+    assert raft_node_3._term == 2, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
 
     assert raft_node_2._term >= raft_node_1._term

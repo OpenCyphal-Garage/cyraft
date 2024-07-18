@@ -203,46 +203,48 @@ class RaftNode:
             - the voted_for of the node
         the method will either grant or deny the vote.
         """
-        # Reply false if term < self._term (§5.1)
-        # (or if already voted for another candidate in this term)
-        if request.term < self._term or (self._voted_for is not None):
+
+        vote_granted = None
+
+        """
+        If request.term is higher than self.term, then:
+         1. Switch to follower
+         2. Update term to new term
+         3. Reset voted_for
+        """
+        if request.term > self._term:
+            self._change_state(RaftState.FOLLOWER) # Our term is stale, so we can't serve as leader 
+            self._term = request.term
+            self._voted_for = None
+
+
+        if request.term < self._term:
+            vote_granted = False
             _logger.info(
                 c["request_vote"]
-                + "Request vote request denied (term (%d) < self._term (%d) or already voted for another candidate in this term (%s))"
+                + "Request vote request denied (term (%d) < self._term (%d)"
                 + c["end_color"],
                 request.term,
                 self._term,
+            )
+        else:
+            vote_granted = (self._voted_for is None or self._voted_for == client_node_id) and self._log[request.last_log_index].term == request.last_log_term
+
+            if vote_granted:
+                self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
+                self._voted_for = client_node_id
+            else:
+             _logger.info(
+                c["request_vote"]
+                + "Request vote request denied log is not up to date (self._log.term (%d) != request.last_log_term (%d) or already voted for another candidate in this term (%s))"
+                + c["end_color"],
+                self._log[request.last_log_index].term,
+                request.last_log_term,
                 self._voted_for,
             )
-            return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
-        # If voted_for is null or candidateId, and candidate’s log is at
-        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
-        elif self._voted_for is None or self._voted_for == client_node_id:
-            # log comparison
-            if self._log[request.last_log_index].term == request.last_log_term:
-                _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
-                self._voted_for = client_node_id
-                self._term = request.term
-                return sirius_cyber_corp.RequestVote_1.Response(
-                    term=self._term,
-                    vote_granted=True,
-                )
-            else:
-                _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
-                return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
+        return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=vote_granted)
 
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Request vote request denied (unknown reason)" + c["end_color"],
-            self._node.id,
-        )
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Current term: %d, Request term: %d" + c["end_color"],
-            self._node.id,
-            self._term,
-            request.term,
-        )
-        assert False, "Should not reach here!"
 
     async def _start_election(self) -> None:
         """
@@ -256,6 +258,8 @@ class RaftNode:
         _logger.info(c["raft_logic"] + "Node ID: %d -- Starting election" + c["end_color"], self._node.id)
         # Increment currentTerm
         self._term += 1
+
+        _logger.info(c["raft_logic"] + "Node ID: %d -- New term - %d" + c["end_color"], self._node.id, self._term)
         # Vote for self
         self._voted_for = self._node.id
         # Send RequestVote RPCs to all other servers
@@ -297,7 +301,10 @@ class RaftNode:
             _logger.info(c["raft_logic"] + "Node ID: %d -- Became leader" + c["end_color"], self._node.id)
             self._change_state(RaftState.LEADER)
         else:
-            _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed" + c["end_color"], self._node.id)
+            _logger.info(c["raft_logic"] + "Node ID: %d -- Election failed: Number of Votes - %d, Needed to win - %d " + c["end_color"], 
+                         self._node.id,
+                         number_of_votes,
+                         (number_of_nodes / 2) + 1)
             # If election fails, revert to follower
             self._voted_for = None
             self._change_state(RaftState.FOLLOWER)
@@ -390,25 +397,8 @@ class RaftNode:
         This method is called when the append entries request passes all checks and can be appended to the log.
         """
         assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
-
-        # If an existing entry conflicts with a new one (same index but different terms),
-        # delete the existing entry and all that follow it (§5.3)
         new_index = request.prev_log_index + 1
         _logger.info(c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"], self._node.id, new_index)
-        for log_index, log_entry in enumerate(self._log[1:]):
-            if (
-                log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
-            ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
-                    self._node.id,
-                    log_index + 1,
-                )
-                number_of_entries_to_delete = len(self._log) - (log_index + 1)
-                self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
-                del self._log[log_index + 1 :]
-                self._commit_index = log_index
-                break
 
         # Append any new entries not already in the log
         # [in our implementation only a single entry is sent at a time]
@@ -421,12 +411,20 @@ class RaftNode:
         ):  # log comparison can be done better, once this is fixed: https://github.com/OpenCyphal/pycyphal/issues/297
             append_new_entry = False
             _logger.info(c["append_entries"] + "Node ID: %d -- entry already exists" + c["end_color"], self._node.id)
+   
         # 2. If it does not exist, append it
         if append_new_entry:
             if new_index < len(self._log):
-                _logger.info("new_index < len(self._log): %s", new_index < len(self._log))
+                _logger.info("new_index < len(self._log): %s (%s < %s)", 
+                                new_index < len(self._log), 
+                                new_index, 
+                                len(self._log)
+                                )   
                 _logger.info(
-                    "self._log[new_index] == request.log_entry[0]: %s", self._log[new_index] == request.log_entry[0]
+                    "self._log[new_index] == request.log_entry[0]: %s (%s == %s)", 
+                    self._log[new_index] == request.log_entry[0], 
+                    self._log[new_index],
+                    request.log_entry[0]
                 )
                 assert False
             self._log.append(request.log_entry[0])
@@ -492,7 +490,17 @@ class RaftNode:
             request.prev_log_term,
         )
         assert len(request.log_entry) == 0, "Heartbeat should not have a log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -558,7 +566,17 @@ class RaftNode:
             log_entry=self._log[remote_next_index],
         )
         assert len(request.log_entry) == 1, "Append entry should have a (single) log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -656,11 +674,11 @@ class RaftNode:
         assert self._state == RaftState.FOLLOWER, "Only followers should reset the election timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_election_timeout = loop.time() + self._election_timeout
         if hasattr(self, "_election_timer"):
+            _logger.info(c["raft_logic"] + "Node ID: %d -- Canceling the alredy existed election timer" + c["end_color"], self._node.id)
             self._election_timer.cancel()
-        self._election_timer = loop.call_at(
-            self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
+        self._election_timer = loop.call_later(
+            self._election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
 
     def _reset_term_timeout(self) -> None:
@@ -670,10 +688,11 @@ class RaftNode:
         assert self._state == RaftState.LEADER, "Only leaders should reset the term timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_term_timeout = loop.time() + self._term_timeout
         if hasattr(self, "_term_timer"):
             self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
+        self._term_timer = loop.call_later(
+            self._term_timeout, lambda: asyncio.create_task(self._on_term_timeout())
+        )
 
     async def _on_election_timeout(self) -> None:
         """
@@ -698,7 +717,6 @@ class RaftNode:
             self._term,
         )
         assert self._state == RaftState.LEADER, "Only leaders have a term timeout"
-        self._term += 1
         self._reset_term_timeout()
         for remote_node_index, remote_next_index in enumerate(self._next_index):
             if self._state != RaftState.LEADER:
