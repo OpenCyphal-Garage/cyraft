@@ -130,25 +130,28 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._voted_for == 41
     assert raft_node_2._voted_for == 41
     assert raft_node_3._voted_for == 41
+    assert raft_node_1._term == 1
+    assert raft_node_2._term == 1
+    assert raft_node_3._term == 1
 
     _logger.info("================== TEST 1: append 3 log entries ==================")
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=4,
+            term=0,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_1"),
                 value=7,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=5,
+            term=0,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=8,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=6,
+            term=0,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_3"),
                 value=9,
@@ -180,13 +183,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 5
+    assert raft_node_1._log[2].term == 0
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 8
-    assert raft_node_1._log[3].term == 6
+    assert raft_node_1._log[3].term == 0
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 9
     assert raft_node_1._commit_index == 3
@@ -196,13 +199,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
-    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_2._log[1].entry.value == 7
-    assert raft_node_2._log[2].term == 5
+    assert raft_node_2._log[2].term == 0
     assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_2._log[2].entry.value == 8
-    assert raft_node_2._log[3].term == 6
+    assert raft_node_2._log[3].term == 0
     assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_2._log[3].entry.value == 9
     assert raft_node_2._commit_index == 3
@@ -210,13 +213,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
-    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_3._log[1].entry.value == 7
-    assert raft_node_3._log[2].term == 5
+    assert raft_node_3._log[2].term == 0
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 8
-    assert raft_node_3._log[3].term == 6
+    assert raft_node_3._log[3].term == 0
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
@@ -224,7 +227,7 @@ async def _unittest_raft_log_replication() -> None:
     _logger.info("================== TEST 2: Replace log entry 3 with a new entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=7,
+        term=1,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=10,
@@ -251,13 +254,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 5
+    assert raft_node_1._log[2].term == 0
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 8
-    assert raft_node_1._log[3].term == 7
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 10
     assert raft_node_1._commit_index == 3
@@ -267,13 +270,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
-    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_2._log[1].entry.value == 7
-    assert raft_node_2._log[2].term == 5
+    assert raft_node_2._log[2].term == 0
     assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_2._log[2].entry.value == 8
-    assert raft_node_2._log[3].term == 7
+    assert raft_node_2._log[3].term == 1
     assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_2._log[3].entry.value == 10
     assert raft_node_2._commit_index == 3
@@ -281,13 +284,13 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
-    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_3._log[1].entry.value == 7
-    assert raft_node_3._log[2].term == 5
+    assert raft_node_3._log[2].term == 0
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 8
-    assert raft_node_3._log[3].term == 7
+    assert raft_node_3._log[3].term == 1
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 10
     assert raft_node_3._commit_index == 3
@@ -296,14 +299,14 @@ async def _unittest_raft_log_replication() -> None:
 
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=8,
+            term=1,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=11,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=9,
+            term=1,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_3"),
                 value=12,
@@ -332,13 +335,13 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_1._log) == 1 + 3
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 8
+    assert raft_node_1._log[2].term == 1
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 11
-    assert raft_node_1._log[3].term == 9
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 12
 
@@ -346,32 +349,32 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.value == 0
-    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_2._log[1].entry.value == 7
-    assert raft_node_2._log[2].term == 8
+    assert raft_node_2._log[2].term == 1
     assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_2._log[2].entry.value == 11
-    assert raft_node_2._log[3].term == 9
+    assert raft_node_2._log[3].term == 1
     assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_2._log[3].entry.value == 12
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.value == 0
-    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_3._log[1].entry.value == 7
-    assert raft_node_3._log[2].term == 8
+    assert raft_node_3._log[2].term == 1
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 11
-    assert raft_node_3._log[3].term == 9
+    assert raft_node_3._log[3].term == 1
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 12
 
     _logger.info("================== TEST 4: Add an already existing log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=9,
+        term=1,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=12,
@@ -398,13 +401,13 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_1._log) == 1 + 3
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 8
+    assert raft_node_1._log[2].term == 1
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 11
-    assert raft_node_1._log[3].term == 9
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 12
 
@@ -412,32 +415,32 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.value == 0
-    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_2._log[1].entry.value == 7
-    assert raft_node_2._log[2].term == 8
+    assert raft_node_2._log[2].term == 1
     assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_2._log[2].entry.value == 11
-    assert raft_node_2._log[3].term == 9
+    assert raft_node_2._log[3].term == 1
     assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_2._log[3].entry.value == 12
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.value == 0
-    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_3._log[1].entry.value == 7
-    assert raft_node_3._log[2].term == 8
+    assert raft_node_3._log[2].term == 1
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 11
-    assert raft_node_3._log[3].term == 9
+    assert raft_node_3._log[3].term == 1
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 12
 
     _logger.info("================== TEST 5: Add an additional log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=10,
+        term=1,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=13,
@@ -463,23 +466,23 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_1._log) == 1 + 4
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 8
+    assert raft_node_1._log[2].term == 1
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 11
-    assert raft_node_1._log[3].term == 9
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 12
-    assert raft_node_1._log[4].term == 10
+    assert raft_node_1._log[4].term == 1
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
     _logger.info("================== TEST 6: Try to append old log entry (term < currentTerm) ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=9,
+        term=0,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=14,
@@ -505,47 +508,47 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_1._log) == 1 + 4
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 8
+    assert raft_node_1._log[2].term == 1
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 11
-    assert raft_node_1._log[3].term == 9
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 12
-    assert raft_node_1._log[4].term == 10
+    assert raft_node_1._log[4].term == 1
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
     assert len(raft_node_2._log) == 1 + 4
     assert raft_node_2._log[0].term == 0
     assert raft_node_2._log[0].entry.value == 0
-    assert raft_node_2._log[1].term == 4
+    assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_2._log[1].entry.value == 7
-    assert raft_node_2._log[2].term == 8
+    assert raft_node_2._log[2].term == 1
     assert raft_node_2._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_2._log[2].entry.value == 11
-    assert raft_node_2._log[3].term == 9
+    assert raft_node_2._log[3].term == 1
     assert raft_node_2._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_2._log[3].entry.value == 12
-    assert raft_node_2._log[4].term == 10
+    assert raft_node_2._log[4].term == 1
     assert raft_node_2._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_2._log[4].entry.value == 13
     assert len(raft_node_3._log) == 1 + 4
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.value == 0
-    assert raft_node_3._log[1].term == 4
+    assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_3._log[1].entry.value == 7
-    assert raft_node_3._log[2].term == 8
+    assert raft_node_3._log[2].term == 1
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 11
-    assert raft_node_3._log[3].term == 9
+    assert raft_node_3._log[3].term == 1
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 12
-    assert raft_node_3._log[4].term == 10
+    assert raft_node_3._log[4].term == 1
     assert raft_node_3._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_3._log[4].entry.value == 13
 
@@ -554,9 +557,9 @@ async def _unittest_raft_log_replication() -> None:
     )
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=11,
+        term=1,
         entry=sirius_cyber_corp.Entry_1(
-            name=uavcan.primitive.String_1(value="top_4"),
+            name=uavcan.primitive.String_1(value="top_5"),
             value=15,
         ),
     )
@@ -580,16 +583,16 @@ async def _unittest_raft_log_replication() -> None:
     assert len(raft_node_1._log) == 1 + 4
     assert raft_node_1._log[0].term == 0
     assert raft_node_1._log[0].entry.value == 0
-    assert raft_node_1._log[1].term == 4
+    assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node_1._log[1].entry.value == 7
-    assert raft_node_1._log[2].term == 8
+    assert raft_node_1._log[2].term == 1
     assert raft_node_1._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_1._log[2].entry.value == 11
-    assert raft_node_1._log[3].term == 9
+    assert raft_node_1._log[3].term == 1
     assert raft_node_1._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_1._log[3].entry.value == 12
-    assert raft_node_1._log[4].term == 10
+    assert raft_node_1._log[4].term == 1
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 

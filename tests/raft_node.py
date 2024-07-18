@@ -100,7 +100,7 @@ async def _unittest_raft_node_init() -> None:
 
 async def _unittest_raft_node_term_timeout() -> None:
     """
-    Test that the LEADER node term is increased upon term timeout
+    Test that the LEADER node term is not increased by term timeout (this is only done by election timeout)
 
     Test that the CANDIDATE/FOLLOWER node term is not increased upon term timeout
     """
@@ -117,15 +117,15 @@ async def _unittest_raft_node_term_timeout() -> None:
     raft_node._change_state(RaftState.LEADER)  # only leader can increase term
 
     await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
-    assert raft_node._term == 1
+    assert raft_node._term == 0 # 0 because we have manually set the node to leader (instead of waiting for election)
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 2
+    assert raft_node._term == 0
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
+    assert raft_node._term == 0
 
     raft_node._change_state(RaftState.FOLLOWER)  # follower should not increase term
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
+    assert raft_node._term == 0
 
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
