@@ -313,7 +313,7 @@ async def _unittest_raft_log_replication() -> None:
 
     for index, new_entry in enumerate(new_entries):
         request = sirius_cyber_corp.AppendEntries_1.Request(
-            term=raft_node_1._term,
+            term=1,
             prev_log_index=index + 1,  # index: 1, 2
             prev_log_term=raft_node_1._log[index + 1].term,
             log_entry=new_entry,
@@ -378,7 +378,7 @@ async def _unittest_raft_log_replication() -> None:
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=raft_node_1._term,
+        term=1,
         prev_log_index=2,  # index of top_2
         prev_log_term=raft_node_1._log[2].term,
         log_entry=new_entry,
