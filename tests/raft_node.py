@@ -102,7 +102,7 @@ async def _unittest_raft_node_init() -> None:
 
 async def _unittest_raft_node_term_timeout() -> None:
     """
-
+    Test that the LEADER node term is not increased by term timeout (this is only done by election timeout)
     Test that the CANDIDATE/FOLLOWER node term is not increased upon term timeout
     """
 
@@ -388,59 +388,59 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     """
     Test the _serve_append_entries method
 
-    Step 1: Append 3 log entries
+     Step 1: Append 3 log entries
        ____________ ____________ ____________ ____________
       | 0          | 1          | 2          | 3          |     Log index
-      | 0          | 0          | 0          | 0          |     Log term
+      | 0          | 4          | 5          | 6          |     Log term
       | empty <= 0 | top_1 <= 7 | top_2 <= 8 | top_3 <= 9 |     Name <= value
       |____________|____________|____________|____________|
 
      Step 2: Replace log entry 3 with a new entry
        ____________
       | 3          |     Log index
-      | 1          |     Log term
+      | 7          |     Log term
       | top_3 <= 10|     Name <= value
       |____________|
 
      Step 3: Replace log entries 2 and 3 with new entries
        ____________ ____________
       | 2          | 3          |     Log index
-      | 2          | 2          |     Log term
+      | 8          | 9          |     Log term
       | top_2 <= 11| top_3 <= 12|     Name <= value
       |____________|____________|
 
      Step 4: Add an already existing log entry
        ____________
       | 3          |     Log index
-      | 3          |     Log term
+      | 9          |     Log term
       | top_3 <= 12|     Name <= value
       |____________|
 
      Step 5: Add an additional log entry
        ____________
       | 4          |     Log index
-      | 3          |     Log term
+      | 10         |     Log term
       | top_4 <= 13|     Name <= value
       |____________|
 
      Result:
        ____________ ____________ ____________ ____________ ____________
       | 0          | 1          | 2          | 3          | 4          |     Log index
-      | 0          | 0          | 1          | 3          | 3          |     Log term
+      | 0          | 4          | 8          | 9          | 10         |     Log term
       | empty <= 0 | top_1 <= 7 | top_2 <= 10| top_3 <= 11| top_4 <= 13|     Name <= value
-      |____________|____________|___________|____________|_____________|
+      |____________|____________|____________|____________|____________|
 
      Step 6: Try to append old log entry (term < currentTerm)
        ____________
       | 4          |     Log index
-      | 2          |     Log term
+      | 9          |     Log term
       | top_4 <= 14|     Name <= value
       |____________|
 
      Step 7: Try to append valid log entry, however entry at prev_log_index term does not match
        ____________
       | 4          |     Log index
-      | 4          |     Log term
+      | 11         |     Log term
       | top_4 <= 15|     Name <= value
       |____________|
 
@@ -459,21 +459,21 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     _logger.info("================== TEST 1: append 3 log entries ==================")
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=0,
+            term=4,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_1"),
                 value=7,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=0,
+            term=5,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=8,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=0,
+            term=6,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_3"),
                 value=9,
@@ -483,7 +483,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     for index, new_entry in enumerate(new_entries):
         request = sirius_cyber_corp.AppendEntries_1.Request(
-            term=0,
+            term=6,
             prev_log_index=index,  # prev_log_index: 0, 1, 2
             prev_log_term=raft_node._log[index].term,
             log_entry=new_entry,
@@ -497,20 +497,20 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
         response = await raft_node._serve_append_entries(request, metadata)
         assert response.success == True
 
-    assert raft_node._term == 0
+    assert raft_node._term == 6
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 0
+    assert raft_node._log[2].term == 5
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 8
-    assert raft_node._log[3].term == 0
+    assert raft_node._log[3].term == 6
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 9
     assert raft_node._commit_index == 3
@@ -524,14 +524,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     _logger.info("================== TEST 2: Replace log entry 3 with a new entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=1,
+        term=7,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=10,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=1,
+        term=7,
         prev_log_index=2,  # index of top_2
         prev_log_term=raft_node._log[2].term,
         log_entry=new_entry,
@@ -545,7 +545,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 1
+    assert raft_node._term == 7
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
@@ -553,13 +553,13 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node._log[0].entry.value == 0
 
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 0
+    assert raft_node._log[2].term == 5
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 8
-    assert raft_node._log[3].term == 1
+    assert raft_node._log[3].term == 7
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 10
     assert raft_node._commit_index == 3
@@ -568,14 +568,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
-            term=2,
+            term=8,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_2"),
                 value=11,
             ),
         ),
         sirius_cyber_corp.LogEntry_1(
-            term=2,
+            term=9,
             entry=sirius_cyber_corp.Entry_1(
                 name=uavcan.primitive.String_1(value="top_3"),
                 value=12,
@@ -585,7 +585,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
 
     for index, new_entry in enumerate(new_entries):
         request = sirius_cyber_corp.AppendEntries_1.Request(
-            term=2,
+            term=9,
             prev_log_index=index + 1,  # index: 1, 2
             prev_log_term=raft_node._log[index + 1].term,
             log_entry=new_entry,
@@ -599,33 +599,33 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
         response = await raft_node._serve_append_entries(request, metadata)
         assert response.success == True
 
-    assert raft_node._term == 2
+    assert raft_node._term == 9
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 2
+    assert raft_node._log[2].term == 8
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 2
+    assert raft_node._log[3].term == 9
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
 
     _logger.info("================== TEST 4: Add an already existing log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=3,
+        term=9,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_3"),
             value=12,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=3,
+        term=9,
         prev_log_index=2,  # index of top_2
         prev_log_term=raft_node._log[2].term,
         log_entry=new_entry,
@@ -640,33 +640,33 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 3
+    assert raft_node._term == 9
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 3
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 2
+    assert raft_node._log[2].term == 8
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 3
+    assert raft_node._log[3].term == 9
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
 
     _logger.info("================== TEST 5: Add an additional log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=3,
+        term=10,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=13,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=3,
+        term=10,
         prev_log_index=3,  # index of top_3
         prev_log_term=raft_node._log[3].term,
         log_entry=new_entry,
@@ -680,36 +680,36 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == True
 
-    assert raft_node._term == 3
+    assert raft_node._term == 10
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 2
+    assert raft_node._log[2].term == 8
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 3
+    assert raft_node._log[3].term == 9
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 3
+    assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node._log[4].entry.value == 13
 
     _logger.info("================== TEST 6: Try to append old log entry (term < currentTerm) ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=2,
+        term=9,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=14,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=2,
+        term=9,
         prev_log_index=3,
         prev_log_term=raft_node._log[3].term,
         log_entry=new_entry,
@@ -723,22 +723,22 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == False
 
-    assert raft_node._term == 3
+    assert raft_node._term == 10
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 2
+    assert raft_node._log[2].term == 8
     assert raft_node._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 3
+    assert raft_node._log[3].term == 9
     assert raft_node._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 3
+    assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node._log[4].entry.value == 13
 
@@ -747,14 +747,14 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     )
 
     new_entry = sirius_cyber_corp.LogEntry_1(
-        term=4,
+        term=11,
         entry=sirius_cyber_corp.Entry_1(
             name=uavcan.primitive.String_1(value="top_4"),
             value=15,
         ),
     )
     request = sirius_cyber_corp.AppendEntries_1.Request(
-        term=4,
+        term=11,
         prev_log_index=4,
         prev_log_term=raft_node._log[4].term - 1,  # term mismatch
         log_entry=new_entry,
@@ -768,17 +768,18 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == False
 
-    assert raft_node._term == 3
+    assert raft_node._term == 10
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
     assert raft_node._log[0].term == 0
     assert raft_node._log[0].entry.value == 0
-    assert raft_node._log[1].term == 0
+    assert raft_node._log[1].term == 4
     assert raft_node._log[1].entry.value == 7
-    assert raft_node._log[2].term == 2
+    assert raft_node._log[2].term == 8
     assert raft_node._log[2].entry.value == 11
-    assert raft_node._log[3].term == 3
+    assert raft_node._log[3].term == 9
     assert raft_node._log[3].entry.value == 12
-    assert raft_node._log[4].term == 3
+    assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.value == 13
+    
