@@ -118,7 +118,7 @@ async def _unittest_raft_node_term_timeout() -> None:
     raft_node._change_state(RaftState.LEADER)  # only leader can increase term
 
     await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
-    assert raft_node._term == 0
+    assert raft_node._term == 0 # 0 because we have manually set the node to leader (instead of waiting for election)
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node._term == 0
     await asyncio.sleep(TERM_TIMEOUT)
