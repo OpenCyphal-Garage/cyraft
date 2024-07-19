@@ -685,7 +685,6 @@ class RaftNode:
             self._term,
         )
         assert self._state == RaftState.LEADER, "Only leaders have a term timeout"
-        self._term += 1
         self._reset_term_timeout()
         for remote_node_index, remote_next_index in enumerate(self._next_index):
             if self._state != RaftState.LEADER:
