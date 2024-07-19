@@ -96,12 +96,13 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._append_entries_clients) == 1
     assert raft_node._next_index == [1]
     # assert raft_node._match_index == [0]
+    raft_node.close()
+    await asyncio.sleep(1)
 
 
 async def _unittest_raft_node_term_timeout() -> None:
     """
-    Test that the LEADER node term is increased upon term timeout
-
+    Test that the LEADER node term is not increased by term timeout (this is only done by election timeout)
     Test that the CANDIDATE/FOLLOWER node term is not increased upon term timeout
     """
 
@@ -117,15 +118,15 @@ async def _unittest_raft_node_term_timeout() -> None:
     raft_node._change_state(RaftState.LEADER)  # only leader can increase term
 
     await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
-    assert raft_node._term == 1
+    assert raft_node._term == 0 # 0 because we have manually set the node to leader (instead of waiting for election)
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 2
+    assert raft_node._term == 0
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
+    assert raft_node._term == 0
 
     raft_node._change_state(RaftState.FOLLOWER)  # follower should not increase term
     await asyncio.sleep(TERM_TIMEOUT)
-    assert raft_node._term == 3
+    assert raft_node._term == 0
 
     raft_node.close()
     await asyncio.sleep(1)  # give some time for the node to close
@@ -332,7 +333,8 @@ async def _unittest_raft_node_request_vote_rpc() -> None:
     assert raft_node._voted_for == 42
     assert response.vote_granted == True
     assert raft_node._term == request.term  # follower node term is updated to candidate's term
-
+    raft_node.close()
+    await asyncio.sleep(1)
 
 async def _unittest_raft_node_start_election() -> None:
     """
@@ -780,3 +782,4 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[3].entry.value == 12
     assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.value == 13
+    
