@@ -593,6 +593,10 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    await asyncio.sleep(1)
 
 
 """
