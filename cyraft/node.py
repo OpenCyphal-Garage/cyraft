@@ -205,46 +205,47 @@ class RaftNode:
             - the voted_for of the node
         the method will either grant or deny the vote.
         """
-        # Reply false if term < self._term (§5.1)
-        # (or if already voted for another candidate in this term)
-        if request.term < self._term or (self._voted_for is not None):
+
+        vote_granted = None
+
+        """
+        If request.term is higher than self.term, then:
+         1. Switch to follower
+         2. Update term to new term
+         3. Reset voted_for
+        """
+        if request.term > self._term:
+            self._change_state(RaftState.FOLLOWER) # Our term is stale, so we can't serve as leader 
+            self._term = request.term
+            self._voted_for = None
+
+
+        if request.term < self._term:
+            vote_granted = False
             _logger.info(
                 c["request_vote"]
-                + "Request vote request denied (term (%d) < self._term (%d) or already voted for another candidate in this term (%s))"
+                + "Request vote request denied (term (%d) < self._term (%d)"
                 + c["end_color"],
                 request.term,
                 self._term,
+            )
+        else:
+            vote_granted = (self._voted_for is None or self._voted_for == client_node_id) and self._log[request.last_log_index].term == request.last_log_term
+
+            if vote_granted:
+                self._change_state(RaftState.FOLLOWER) # Avoiding race condition when Candidate. This is necessary to avoid excessive elections
+                self._voted_for = client_node_id
+            else:
+             _logger.info(
+                c["request_vote"]
+                + "Request vote request denied log is not up to date (self._log.term (%d) != request.last_log_term (%d) or already voted for another candidate in this term (%s))"
+                + c["end_color"],
+                self._log[request.last_log_index].term,
+                request.last_log_term,
                 self._voted_for,
             )
-            return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
 
-        # If voted_for is null or candidateId, and candidate’s log is at
-        # least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
-        elif self._voted_for is None or self._voted_for == client_node_id:
-            # log comparison
-            if self._log[request.last_log_index].term == request.last_log_term:
-                _logger.info(c["request_vote"] + "Request vote request granted" + c["end_color"])
-                self._voted_for = client_node_id
-                self._term = request.term
-                return sirius_cyber_corp.RequestVote_1.Response(
-                    term=self._term,
-                    vote_granted=True,
-                )
-            else:
-                _logger.info(c["request_vote"] + "Request vote request denied (failed log comparison)" + c["end_color"])
-                return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=False)
-
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Request vote request denied (unknown reason)" + c["end_color"],
-            self._node.id,
-        )
-        _logger.info(
-            c["request_vote"] + "Node ID: %d -- Current term: %d, Request term: %d" + c["end_color"],
-            self._node.id,
-            self._term,
-            request.term,
-        )
-        assert False, "Should not reach here!"
+        return sirius_cyber_corp.RequestVote_1.Response(term=self._term, vote_granted=vote_granted)
 
     async def _start_election(self) -> None:
         """
@@ -494,7 +495,17 @@ class RaftNode:
             request.prev_log_term,
         )
         assert len(request.log_entry) == 0, "Heartbeat should not have a log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -560,7 +571,17 @@ class RaftNode:
             log_entry=self._log[remote_next_index],
         )
         assert len(request.log_entry) == 1, "Append entry should have a (single) log entry"
-        response = await remote_client(request)  # metadata is filled out by the client
+        try:
+            response = await remote_client(request)  # metadata is filled out by the client
+        except pycyphal.presentation._port._error.PortClosedError:
+            _logger.info(
+                c["raft_logic"]
+                + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                + c["end_color"],
+                self._node.id,
+                self._cluster[remote_node_index],
+            )
+            return
         if response:
             if response.success:
                 _logger.info(
@@ -658,11 +679,10 @@ class RaftNode:
         assert self._state == RaftState.FOLLOWER, "Only followers should reset the election timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_election_timeout = loop.time() + self._election_timeout
         if hasattr(self, "_election_timer"):
             self._election_timer.cancel()
-        self._election_timer = loop.call_at(
-            self._next_election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
+        self._election_timer = loop.call_later(
+            self._election_timeout, lambda: asyncio.create_task(self._on_election_timeout())
         )
 
     def _reset_term_timeout(self) -> None:
@@ -672,10 +692,9 @@ class RaftNode:
         assert self._state == RaftState.LEADER, "Only leaders should reset the term timeout"
         _logger.info(c["raft_logic"] + "Node ID: %d -- Resetting term timeout" + c["end_color"], self._node.id)
         loop = asyncio.get_event_loop()
-        self._next_term_timeout = loop.time() + self._term_timeout
         if hasattr(self, "_term_timer"):
             self._term_timer.cancel()
-        self._term_timer = loop.call_at(self._next_term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
+        self._term_timer = loop.call_later(self._term_timeout, lambda: asyncio.create_task(self._on_term_timeout()))
 
     async def _on_election_timeout(self) -> None:
         """
