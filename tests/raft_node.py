@@ -255,7 +255,9 @@ async def _unittest_raft_node_heartbeat() -> None:
     raft_node._voted_for = 42
 
     asyncio.create_task(raft_node.run())
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
+    await asyncio.sleep(
+        ELECTION_TIMEOUT * 0.90
+    )  # sleep until right before election timeout
 
     # send heartbeat
     terms_passed = raft_node._term  # leader's term is equal to the follower's term
@@ -282,8 +284,12 @@ async def _unittest_raft_node_heartbeat() -> None:
 
     # send heartbeat again
     # (this time leader has a higher term, we want to make sure that the follower's term is updated)
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
-    terms_passed = raft_node._term + 5  # leader's term is higher than the follower's term
+    await asyncio.sleep(
+        ELECTION_TIMEOUT * 0.90
+    )  # sleep until right before election timeout
+    terms_passed = (
+        raft_node._term + 5
+    )  # leader's term is higher than the follower's term
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -308,8 +314,12 @@ async def _unittest_raft_node_heartbeat() -> None:
 
     # send heartbeat again
     # (this time from a different leader with a higher term, we want to make sure the follower switches leader and updates term)
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
-    terms_passed = raft_node._term + 5  # leader's term is higher than the follower's term
+    await asyncio.sleep(
+        ELECTION_TIMEOUT * 0.90
+    )  # sleep until right before election timeout
+    terms_passed = (
+        raft_node._term + 5
+    )  # leader's term is higher than the follower's term
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -334,8 +344,12 @@ async def _unittest_raft_node_heartbeat() -> None:
 
     # send heartbeat again
     # (this time the leader's term is lower than the follower's term, we want to make sure the follower doesn't switch leader)
-    await asyncio.sleep(ELECTION_TIMEOUT * 0.90)  # sleep until right before election timeout
-    terms_passed = raft_node._term - 1  # leader's term is lower than the follower's term
+    await asyncio.sleep(
+        ELECTION_TIMEOUT * 0.90
+    )  # sleep until right before election timeout
+    terms_passed = (
+        raft_node._term - 1
+    )  # leader's term is lower than the follower's term
     await raft_node._serve_append_entries(
         sirius_cyber_corp.AppendEntries_1.Request(
             term=terms_passed,  # leader's term
@@ -357,7 +371,9 @@ async def _unittest_raft_node_heartbeat() -> None:
     assert raft_node._prev_state == RaftState.CANDIDATE
 
     raft_node.close()
-    await asyncio.sleep(1)  # fixes when just running this test, however not when "pytest /cyraft" is run
+    await asyncio.sleep(
+        1
+    )  # fixes when just running this test, however not when "pytest /cyraft" is run
 
 
 async def _unittest_raft_node_start_election() -> None:
