@@ -178,9 +178,7 @@ async def _unittest_raft_log_replication() -> None:
     # check if the new entry is replicated in the leader node
     assert len(raft_node_1._log) == 1 + 3
     assert raft_node_1._log[0].term == 0
-    assert (
-        raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_1._log[0].entry.value == 0
     assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -196,9 +194,7 @@ async def _unittest_raft_log_replication() -> None:
     # check if the new entry is replicated in the follower nodes
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
-    assert (
-        raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
     assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -212,9 +208,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_2._commit_index == 3
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
-    assert (
-        raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
     assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -227,9 +221,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 3
 
-    _logger.info(
-        "================== TEST 2: Replace log entry 3 with a new entry =================="
-    )
+    _logger.info("================== TEST 2: Replace log entry 3 with a new entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=1,
@@ -257,9 +249,7 @@ async def _unittest_raft_log_replication() -> None:
 
     assert len(raft_node_1._log) == 1 + 3
     assert raft_node_1._log[0].term == 0
-    assert (
-        raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_1._log[0].entry.value == 0
     assert raft_node_1._log[1].term == 0
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -275,9 +265,7 @@ async def _unittest_raft_log_replication() -> None:
     # check if the new entry is replicated in the follower nodes
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
-    assert (
-        raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
     assert raft_node_2._log[1].term == 0
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -291,9 +279,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_2._commit_index == 3
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
-    assert (
-        raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
     assert raft_node_3._log[1].term == 0
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -306,9 +292,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[3].entry.value == 10
     assert raft_node_3._commit_index == 3
 
-    _logger.info(
-        "================== TEST 3: Replace log entries 2 and 3 with new entries =================="
-    )
+    _logger.info("================== TEST 3: Replace log entries 2 and 3 with new entries ==================")
 
     new_entries = [
         sirius_cyber_corp.LogEntry_1(
@@ -384,9 +368,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 12
 
-    _logger.info(
-        "================== TEST 4: Add an already existing log entry =================="
-    )
+    _logger.info("================== TEST 4: Add an already existing log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=1,
@@ -452,9 +434,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 12
 
-    _logger.info(
-        "================== TEST 5: Add an additional log entry =================="
-    )
+    _logger.info("================== TEST 5: Add an additional log entry ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=1,
@@ -496,9 +476,7 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
-    _logger.info(
-        "================== TEST 6: Try to append old log entry (term < currentTerm) =================="
-    )
+    _logger.info("================== TEST 6: Try to append old log entry (term < currentTerm) ==================")
 
     new_entry = sirius_cyber_corp.LogEntry_1(
         term=0,
@@ -712,9 +690,7 @@ async def _unittest_raft_leader_changes() -> None:
     asyncio.create_task(raft_node_3.run())
     asyncio.create_task(raft_node_4.run())
 
-    _logger.info(
-        "================== TEST 1: Append 3 Log Entries to LEADER node 41 =================="
-    )
+    _logger.info("================== TEST 1: Append 3 Log Entries to LEADER node 41 ==================")
 
     # wait for the leader to be elected
     await asyncio.sleep(ELECTION_TIMEOUT + 1)
@@ -774,9 +750,7 @@ async def _unittest_raft_leader_changes() -> None:
     # check if the new entry is replicated in the leader node
     assert len(raft_node_1._log) == 1 + 3
     assert raft_node_1._log[0].term == 0
-    assert (
-        raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_1._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_1._log[0].entry.value == 0
     assert raft_node_1._log[1].term == 1
     assert raft_node_1._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -792,9 +766,7 @@ async def _unittest_raft_leader_changes() -> None:
     # check if the new entry is replicated in the follower nodes
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
-    assert (
-        raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
     assert raft_node_2._log[1].term == 1
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -809,9 +781,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
-    assert (
-        raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
     assert raft_node_3._log[1].term == 1
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -826,9 +796,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_4._log) == 1 + 3
     assert raft_node_4._log[0].term == 0
-    assert (
-        raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_4._log[0].entry.value == 0
     assert raft_node_4._log[1].term == 1
     assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -843,9 +811,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     await asyncio.sleep(TERM_TIMEOUT + 1)
 
-    _logger.info(
-        "================== TEST 2: Leadership Change to Node 42 and Add New Entry  =================="
-    )
+    _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
     # New LEADER => raft_node_2
 
@@ -872,9 +838,7 @@ async def _unittest_raft_leader_changes() -> None:
     # check that all logs are saved from previous LEADER
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
-    assert (
-        raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
     assert raft_node_2._log[1].term == 1
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -889,9 +853,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
-    assert (
-        raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
     assert raft_node_3._log[1].term == 1
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -906,9 +868,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_4._log) == 1 + 3
     assert raft_node_4._log[0].term == 0
-    assert (
-        raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_4._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_4._log[0].entry.value == 0
     assert raft_node_4._log[1].term == 1
     assert raft_node_4._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -1003,9 +963,7 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_4.close()
     await asyncio.sleep(1)
 
-    _logger.info(
-        "================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 =================="
-    )
+    _logger.info("================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 ==================")
 
     await asyncio.sleep(TERM_TIMEOUT)
 
@@ -1035,9 +993,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
-    assert (
-        raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_2._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_2._log[0].entry.value == 0
     assert raft_node_2._log[1].term == 1
     assert raft_node_2._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"
@@ -1067,9 +1023,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     assert len(raft_node_3._log) == 1 + 4
     assert raft_node_3._log[0].term == 0
-    assert (
-        raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""
-    )  # index zero entry is empty
+    assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
     assert raft_node_3._log[1].term == 1
     assert raft_node_3._log[1].entry.name.value.tobytes().decode("utf-8") == "top_1"

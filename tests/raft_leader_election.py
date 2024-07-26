@@ -136,9 +136,7 @@ async def _unittest_raft_fsm_1() -> None:
     assert raft_node_3._term == 0
     assert raft_node_3._voted_for is None
 
-    _logger.info(
-        "================== TEST STAGE 2/3: LEADER election =================="
-    )
+    _logger.info("================== TEST STAGE 2/3: LEADER election ==================")
 
     # node 1 should have a smaller election timeout than others
     raft_node_1.election_timeout = ELECTION_TIMEOUT - 1
@@ -164,16 +162,10 @@ async def _unittest_raft_fsm_1() -> None:
     assert raft_node_3._term == 1, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 41
 
-    assert (
-        raft_node_1._term >= raft_node_2._term
-    ), "LEADER term should be higher (or equal) than FOLLOWER"
-    assert (
-        raft_node_1._term >= raft_node_3._term
-    ), "LEADER term should be higher (or equal) than FOLLOWER"
+    assert raft_node_1._term >= raft_node_2._term, "LEADER term should be higher (or equal) than FOLLOWER"
+    assert raft_node_1._term >= raft_node_3._term, "LEADER term should be higher (or equal) than FOLLOWER"
 
-    _logger.info(
-        "================== TEST STAGE 4: LEADER maintains leadership =================="
-    )
+    _logger.info("================== TEST STAGE 4: LEADER maintains leadership ==================")
 
     await asyncio.sleep(ELECTION_TIMEOUT)
 
@@ -198,9 +190,7 @@ async def _unittest_raft_fsm_1() -> None:
     raft_node_1.close()
     raft_node_2.close()
     raft_node_3.close()
-    _logger.info(
-        "================== DOES SOMETHING HAPPEN AFTER THIS? =================="
-    )
+    _logger.info("================== DOES SOMETHING HAPPEN AFTER THIS? ==================")
     await asyncio.sleep(10)
 
 
@@ -215,9 +205,7 @@ async def _unittest_raft_fsm_2():
     TERM_TIMEOUT = 0.5
     ELECTION_TIMEOUT = 5
 
-    _logger.info(
-        "================== TEST STAGE 5/6: node with higher term gets elected =================="
-    )
+    _logger.info("================== TEST STAGE 5/6: node with higher term gets elected ==================")
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
@@ -230,9 +218,7 @@ async def _unittest_raft_fsm_2():
     os.environ["UAVCAN__NODE__ID"] = "43"
     raft_node_3 = RaftNode()
     raft_node_3.term_timeout = TERM_TIMEOUT
-    raft_node_3.election_timeout = (
-        ELECTION_TIMEOUT + 1
-    )  # we don't want this node starting any elections
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 1  # we don't want this node starting any elections
 
     # make all part of the same cluster
     cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
@@ -245,9 +231,7 @@ async def _unittest_raft_fsm_2():
     raft_node_1._change_state(RaftState.LEADER)
     raft_node_1._voted_for = 41
     raft_node_1._term = 1
-    raft_node_2._change_state(
-        RaftState.CANDIDATE
-    )  # this is not strictly necessary, but it's more realistic
+    raft_node_2._change_state(RaftState.CANDIDATE)  # this is not strictly necessary, but it's more realistic
     raft_node_2._change_state(RaftState.LEADER)
     raft_node_2._voted_for = 42
     raft_node_2._term = 2
@@ -256,9 +240,7 @@ async def _unittest_raft_fsm_2():
     asyncio.create_task(raft_node_2.run())
     asyncio.create_task(raft_node_3.run())
 
-    await asyncio.sleep(
-        ELECTION_TIMEOUT + 0.1
-    )  # + 0.1 is necesary to make sure the last term timeout is processed
+    await asyncio.sleep(ELECTION_TIMEOUT + 0.1)  # + 0.1 is necesary to make sure the last term timeout is processed
 
     # assert raft_node_1._prev_state == RaftState.LEADER
     assert raft_node_1._state == RaftState.FOLLOWER
@@ -321,9 +303,7 @@ async def _unittest_raft_fsm_3():
     # node 1 is CANDIDATE, node 2 is LEADER
     raft_node_1._change_state(RaftState.CANDIDATE)
     raft_node_1._voted_for = 41
-    raft_node_2._change_state(
-        RaftState.CANDIDATE
-    )  # this is not strictly necessary, but it's more realistic
+    raft_node_2._change_state(RaftState.CANDIDATE)  # this is not strictly necessary, but it's more realistic
     raft_node_2._change_state(RaftState.LEADER)
     raft_node_2._voted_for = 42
     raft_node_2._term = 1
@@ -371,9 +351,7 @@ async def _unittest_raft_fsm_4():
     TERM_TIMEOUT = 0.5
     ELECTION_TIMEOUT = 5
 
-    _logger.info(
-        "================== TEST STAGE 9/10: 2 CANDIDATEs, higher term get's elected =================="
-    )
+    _logger.info("================== TEST STAGE 9/10: 2 CANDIDATEs, higher term get's elected ==================")
 
     os.environ["UAVCAN__NODE__ID"] = "41"
     raft_node_1 = RaftNode()
