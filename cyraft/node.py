@@ -833,9 +833,9 @@ class RaftNode:
                     self._node.id,
                     self._cluster[self._current_follower],
                 )
-                task = asyncio.create_task(self._send_heartbeat(self._next_index[self._current_follower]))
+                task = asyncio.create_task(self._send_heartbeat(self._current_follower))
             else:  # remote log is not up to date, send append entries request
-                task = asyncio.create_task(self._send_append_entry(self._next_index[self._current_follower]))
+                task = asyncio.create_task(self._send_append_entry(self._current_follower))
 
             self._term_timeout_tasks[self._current_follower] = task
             self._current_follower += 1

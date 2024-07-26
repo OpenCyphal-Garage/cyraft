@@ -348,7 +348,7 @@ async def _unittest_raft_fsm_4():
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
+    TERM_TIMEOUT = 1
     ELECTION_TIMEOUT = 5
 
     _logger.info("================== TEST STAGE 9/10: 2 CANDIDATEs, higher term get's elected ==================")
