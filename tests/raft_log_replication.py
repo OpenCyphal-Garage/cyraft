@@ -963,7 +963,9 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_4.close()
     await asyncio.sleep(1)
 
-    _logger.info("================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 ==================")
+    _logger.info(
+        "================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 =================="
+    )
 
     await asyncio.sleep(TERM_TIMEOUT)
 
