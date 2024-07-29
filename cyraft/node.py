@@ -478,6 +478,7 @@ class RaftNode:
         if self._state == RaftState.FOLLOWER:
             self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             self._term = request.log_entry[0].term
+            
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """

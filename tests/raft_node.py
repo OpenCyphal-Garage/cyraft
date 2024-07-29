@@ -13,6 +13,7 @@ import uavcan
 # Add parent directory to Python path
 # Get the absolute path of the parent directory
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 # Add the parent directory to the Python path
 sys.path.append(parent_dir)
 # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
@@ -95,6 +96,8 @@ async def _unittest_raft_node_init() -> None:
     assert len(raft_node._request_vote_clients) == 1
     assert len(raft_node._append_entries_clients) == 1
     assert raft_node._next_index == [1]
+    raft_node.close()
+    await asyncio.sleep(1)
     # assert raft_node._match_index == [0]
     raft_node.close()
     await asyncio.sleep(1)

@@ -1,0 +1,96 @@
+
+
+# Name of the workflow, which will be displayed in the GitHub Actions dashboard
+name: Cyraft application
+
+on: [ push, pull_request ]
+
+# Ensures that only one workflow is running at a time
+concurrency:
+  group: ${{ github.workflow_sha }}
+  cancel-in-progress: true
+
+# Set permissions to read contents, which allows the workflow to access the repository's code
+permissions:
+  contents: read
+
+# Define a job called "build", which will execute the steps defined below
+jobs:
+  build:
+
+    # Run the job on an ubuntu-latest environment, which provides a fresh Ubuntu installation
+    runs-on: ubuntu-latest
+
+    # Define the steps for the job, which will be executed in sequence
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true  # Initialize submodules to ensure all code is available, including submodules in the repository
+        
+    # Set up Python 3.10 environment, which will be used to run the tests and linting
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"  # Specify the version of Python to use
+        
+    # Install dependencies required for the project, including flake8 and pytest
+    - name: Install dependencies
+      run: |
+        # Upgrade pip to the latest version, to ensure we have the latest package manager
+        python -m pip install --upgrade pip
+
+        # Install flake8, which is a Python linter that checks for syntax errors and coding standards
+        pip install flake8
+        # If a requirements.txt file exists in the repository, install the dependencies specified in it
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    # Set up environment variable CYPHAL_PATH, which is used by the Cyraft application
+    - name: Set up Environment Variable CYPHAL_PATH
+      run: |
+        # Set CYPHAL_PATH to include custom_data_types and public_regulated_data_types directories
+        echo "CYPHAL_PATH=$GITHUB_WORKSPACE/demo/custom_data_types:$GITHUB_WORKSPACE/demo/public_regulated_data_types" >> $GITHUB_ENV
+              
+    # Verify CYPHAL_PATH is set correctly, by printing its value
+    - name: Verify CYPHAL_PATH
+      run: echo $CYPHAL_PATH
+      
+    # Source and export environment variables from my_env.sh, which sets UAVCAN environment variables
+    - name: Source and export my_env.sh
+      run: |
+        # Source my_env.sh to set environment variables, such as UAVCAN__NODE__ID, UAVCAN__UDP__IFACE, etc.
+        source $GITHUB_WORKSPACE/my_env.sh
+        # Export UAVCAN environment variables, so they can be used in subsequent steps
+        echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID" >> $GITHUB_ENV
+        echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE" >> $GITHUB_ENV
+        echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID" >> $GITHUB_ENV
+        echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY" >> $GITHUB_ENV
+
+    # Debug environment variables, by printing their values
+    - name: Debug environment variables
+      run: |
+        # Print UAVCAN environment variables for debugging purposes
+        echo "UAVCAN__NODE__ID=$UAVCAN__NODE__ID"
+        echo "UAVCAN__UDP__IFACE=$UAVCAN__UDP__IFACE"
+        echo "UAVCAN__SRV__REQUEST_VOTE__ID=$UAVCAN__SRV__REQUEST_VOTE__ID"
+        echo "UAVCAN__DIAGNOSTIC__SEVERITY=$UAVCAN__DIAGNOSTIC__SEVERITY"
+        
+    # List directory for debugging, to verify the file structure
+    - name: List directory for debugging
+      run: ls -R $GITHUB_WORKSPACE/demo
+
+    # Check DSDL directories, to verify the existence of custom_data_types and public_regulated_data_types directories
+    - name: Check DSDL directories
+      run: |
+        ls $GITHUB_WORKSPACE/demo/custom_data_types/sirius_cyber_corp
+        ls $GITHUB_WORKSPACE/demo/public_regulated_data_types/uavcan/primitive
+
+      # Lint with bleck, to check for Python syntax errors and coding standards
+    - name: Lint with black
+      run: |
+        # Run black to format the code
+        black --line-length 120 .
+        black . --check --diff --color --verbose && flake8 --select=E901,E999,F821,F822,F823 .
+        
+    # Test with pytest, to run unit tests and verify the application's functionality
+    - name: Test with pytest
+      run: pytest tests/
