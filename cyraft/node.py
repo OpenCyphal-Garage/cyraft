@@ -364,11 +364,8 @@ class RaftNode:
             _logger.info(
                 c["append_entries"]
                 + "Node ID: %d -- Append entries request denied (term (%d) < currentTerm (%d))"
-                + "Node ID: %d -- Append entries request denied (term (%d) < currentTerm (%d))"
                 + c["end_color"],
                 self._node.id,
-                request.term,
-                self._term,
                 request.term,
                 self._term,
             )
@@ -391,14 +388,7 @@ class RaftNode:
                 + "Node ID: %d -- Append entries request denied (log mismatch 2). IndexError: %s. "
                 + "prev_log_index: %d, log_length: %d"
                 + c["end_color"],
-                c["append_entries"]
-                + "Node ID: %d -- Append entries request denied (log mismatch 2). IndexError: %s. "
-                + "prev_log_index: %d, log_length: %d"
-                + c["end_color"],
                 self._node.id,
-                str(e),
-                request.prev_log_index,
-                len(self._log),
                 str(e),
                 request.prev_log_index,
                 len(self._log),
