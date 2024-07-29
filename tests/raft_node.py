@@ -13,6 +13,7 @@ import uavcan
 # Add parent directory to Python path
 # Get the absolute path of the parent directory
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Add the parent directory to the Python path
 sys.path.append(parent_dir)
 # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
@@ -120,6 +121,7 @@ async def _unittest_raft_node_term_timeout() -> None:
     raft_node._change_state(RaftState.LEADER)  # only leader can increase term
 
     await asyncio.sleep(TERM_TIMEOUT)  # + 0.1 to make sure the timer has been reset
+    assert raft_node._term == 0  # 0 because we have manually set the node to leader (instead of waiting for election)
     assert raft_node._term == 0  # 0 because we have manually set the node to leader (instead of waiting for election)
     await asyncio.sleep(TERM_TIMEOUT)
     assert raft_node._term == 0
@@ -785,3 +787,4 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     assert raft_node._log[3].entry.value == 12
     assert raft_node._log[4].term == 10
     assert raft_node._log[4].entry.value == 13
+    raft_node.close()
