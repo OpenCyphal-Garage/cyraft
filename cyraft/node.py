@@ -476,8 +476,9 @@ class RaftNode:
 
         # Update current_term (if follower) (leaders will update their own term on timeout)
         if self._state == RaftState.FOLLOWER:
-            self._reset_election_timeout()
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             self._term = request.log_entry[0].term
+            
 
     async def _send_heartbeat(self, remote_node_index: int) -> None:
         """
@@ -759,16 +760,6 @@ class RaftNode:
             if self._state != RaftState.LEADER:
                 # if the node is no longer a leader, stop sending heartbeats
                 break
-
-            _logger.info(
-                c["raft_logic"]
-                + "Node ID: %d -- Value of next index = %d and value of remote next index = %s for node %s"
-                + c["end_color"],
-                self._node.id,
-                self._commit_index + 1,
-                remote_next_index,
-                self._cluster[remote_node_index],
-            )
 
             _logger.info(
                 c["raft_logic"]
