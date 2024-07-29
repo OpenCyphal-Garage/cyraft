@@ -25,7 +25,7 @@ import time
 
 # Add parent directory to Python path
 # Get the absolute path of the parent directory
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Add the parent directory to the Python path
 sys.path.append(parent_dir)
 # This can be removed if setting PYTHONPATH (export PYTHONPATH=cyraft)
@@ -149,9 +149,7 @@ async def _unittest_raft_fsm_1() -> None:
 
     assert raft_node_1._prev_state == RaftState.CANDIDATE
     assert raft_node_1._state == RaftState.LEADER
-    assert (
-        raft_node_1._term == 1
-    ), "+1 due to starting election"
+    assert raft_node_1._term == 1, "+1 due to starting election"
     assert raft_node_1._voted_for == 41
 
     assert raft_node_2._prev_state == RaftState.FOLLOWER
