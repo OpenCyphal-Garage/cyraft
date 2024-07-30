@@ -282,7 +282,17 @@ class RaftNode:
                 self._node.id,
                 remote_node_id,
             )
-            response = await remote_client(request)
+            try:
+                response = await remote_client(request)
+            except pycyphal.presentation._port._error.PortClosedError:
+                _logger.info(
+                    c["raft_logic"]
+                    + "Node ID: %d -- Failed to send append entries request to remote node %d (port closed)"
+                    + c["end_color"],
+                    self._node.id,
+                    self._cluster[remote_node_index],
+                )
+                return
             if response:
                 _logger.info(
                     c["raft_logic"] + "Node ID: %d -- Response from node %d: %s" + c["end_color"],
@@ -795,7 +805,7 @@ class RaftNode:
         - if the remote node log is not up to date, it will send an append entries request
         """
         _logger.info(
-            c["raft_logic"] + "Node ID: %d -- Term timeout reached, new term: %d" + c["end_color"],
+            c["raft_logic"] + "Node ID: %d -- Term timeout reached, current term: %d" + c["end_color"],
             self._node.id,
             self._term,
         )
@@ -850,28 +860,30 @@ class RaftNode:
         This method will schedule the election and term timeouts.
         Upon timeout another callback is scheduled, which will allow the node to keep running.
         """
-        _logger.info("Application Node started!")
-        _logger.info("Running. Press Ctrl+C to stop.")
+        _logger.info("Node ID: %d -- Application Node started!", self._node.id)
+        _logger.info(
+            "Node ID: %d -- Running. Press Ctrl+C to stop.",
+            self._node.id,
+        )
 
         loop = asyncio.get_event_loop()
 
-        # Scheduling coroutine to be run using call_at requires using lambda, the why is explained here:
+        # Scheduling coroutine to be run using call_later requires using lambda, the why is explained here:
         # https://github.com/OpenCyphal-Garage/cyraft/issues/8#issuecomment-1546868666
         # https://stackoverflow.com/questions/48235690/passing-a-coroutine-to-abstracteventloop-call-later
 
         # Schedule election timeout (if follower or candidate)
         if self._state == RaftState.FOLLOWER:
-            self._next_election_timeout = loop.time() + self._election_timeout
-            self._term_timer = loop.call_at(
-                self._next_election_timeout,
+            self._term_timer = loop.call_later(
+                self._election_timeout,
                 lambda: asyncio.create_task(self._on_election_timeout()),
             )
 
         # Schedule term timeout (only for leader)
         if self._state == RaftState.LEADER:
             self._next_term_timeout = loop.time() + self._term_timeout
-            self._term_timer = loop.call_at(
-                self._next_term_timeout,
+            self._term_timer = loop.call_later(
+                self._term_timeout,
                 lambda: asyncio.create_task(self._on_term_timeout()),
             )
 
