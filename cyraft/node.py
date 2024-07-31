@@ -334,42 +334,32 @@ class RaftNode:
             metadata.client_node_id,
         )
 
-        # heartbeat processing
-        if len(request.log_entry) == 0:  # empty means heartbeat
-            if request.term < self._term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- Heartbeat denied (term < currentTerm)" + c["end_color"],
-                    self._node.id,
-                )
-                return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
-            else:  # request.term >= self._term
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"],
-                    self._node.id,
-                )
-                if metadata.client_node_id != self._voted_for and request.term > self._term:
-                    _logger.info(
-                        c["append_entries"] + "Node ID: %d -- Heartbeat from new leader: %d" + c["end_color"],
-                        self._node.id,
-                        metadata.client_node_id,
-                    )
-                    self._voted_for = metadata.client_node_id
-                self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
-                self._term = request.term  # update term
-
-                return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
-
         # Reply false if term < currentTerm (§5.1)
         if request.term < self._term:
             _logger.info(
-                c["append_entries"]
-                + "Node ID: %d -- Append entries request denied (term (%d) < currentTerm (%d))"
-                + c["end_color"],
+                c["append_entries"] + "Node ID: %d -- Heartbeat denied (term (%d) < currentTerm (%d))" + c["end_color"],
                 self._node.id,
                 request.term,
                 self._term,
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
+        elif request.term > self._term:
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- Heartbeat from new leader: %d" + c["end_color"],
+                self._node.id,
+                metadata.client_node_id,
+            )
+            self._voted_for = metadata.client_node_id
+            self._term = request.term  # update term
+
+        # heartbeat processing
+        if len(request.log_entry) == 0:  # empty means heartbeat
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"],
+                self._node.id,
+            )
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
+            return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
@@ -537,13 +527,14 @@ class RaftNode:
                 if response.term > self._term:
                     _logger.info(
                         c["raft_logic"]
-                        + "Node ID: %d -- heartbeat to node %d failed, converting to follower"
+                        + "Node ID: %d -- heartbeat to node %d failed, follower term > leader term (%d > %d)"
                         + c["end_color"],
                         self._node.id,
                         remote_node_id,
+                        response.term,
+                        self._term,
                     )
-                    self._change_state(RaftState.FOLLOWER)
-                    self._voted_for = None
+                    self._term = response.term
                     return
                 elif response.term == self._term:
                     if self._state != RaftState.LEADER:
@@ -615,13 +606,14 @@ class RaftNode:
                 if response.term > self._term:
                     _logger.info(
                         c["raft_logic"]
-                        + "Node ID: %d -- Remote node %d log update failed, converting to follower"
+                        + "Node ID: %d -- heartbeat to node %d failed, follower term > leader term (%d > %d)"
                         + c["end_color"],
                         self._node.id,
                         self._cluster[remote_node_index],
+                        response.term,
+                        self._term,
                     )
-                    self._change_state(RaftState.FOLLOWER)
-                    self._voted_for = None
+                    self._term = response.term
                     return
                 elif response.term == self._term:
                     if self._state != RaftState.LEADER:
@@ -780,6 +772,7 @@ class RaftNode:
                 )
                 await self._send_heartbeat(remote_node_index)
             else:  # remote log is not up to date, send append entries request
+                self._next_index[remote_node_index] = self._commit_index
                 await self._send_append_entry(remote_node_index)
 
     async def run(self) -> None:
