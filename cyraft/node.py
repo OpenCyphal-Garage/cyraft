@@ -394,11 +394,11 @@ class RaftNode:
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
         # Update the log with new entries - this will possibly require to rewrite existing entries.
-        if request.prev_log_index != len(self._log):
+        if request.prev_log_index + 1 != len(self._log):
             _logger.info(
                 c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
                 self._node.id,
-                request.prev_log_index,
+                request.prev_log_index + 1,
             )
             number_of_entries_to_delete = len(self._log) - (request.prev_log_index + 1)
             self._next_index = [x - number_of_entries_to_delete for x in self._next_index]

@@ -809,7 +809,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_4._log[3].entry.value == 9
     assert raft_node_4._commit_index == 3
 
-    await asyncio.sleep(TERM_TIMEOUT + 1)
+    await asyncio.sleep(TERM_TIMEOUT)
 
     _logger.info("================== TEST 2: Leadership Change to Node 42 and Add New Entry  ==================")
 
@@ -819,9 +819,7 @@ async def _unittest_raft_leader_changes() -> None:
 
     raft_node_1.close()  # Simulation of the disappearance of a leader from a cluster
 
-    await asyncio.sleep(
-        ELECTION_TIMEOUT + 9 * TERM_TIMEOUT
-    )  # Nine terms are needed for complete replication of logs from the leader to the followers.
+    await asyncio.sleep(ELECTION_TIMEOUT + 2)
 
     assert raft_node_2._state == RaftState.LEADER
     assert raft_node_2._term == 2
@@ -958,11 +956,6 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_4._log[4].entry.value == 13
     assert raft_node_4._commit_index == 4
 
-    raft_node_2.close()
-    raft_node_3.close()
-    raft_node_4.close()
-    await asyncio.sleep(1)
-
     _logger.info(
         "================== TEST 3: Replace Log Entry 3 with a New Entry from LEADER Node 42 =================="
     )
@@ -1009,7 +1002,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_2._commit_index == 3
 
     # check if the new entry is replicated in the follower nodes
-    assert len(raft_node_4._log) == 1 + 4
+    assert len(raft_node_4._log) == 1 + 3
     assert raft_node_4._log[0].term == 0
     assert raft_node_4._log[0].entry.value == 0
     assert raft_node_4._log[1].term == 1
@@ -1018,12 +1011,12 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_4._log[2].term == 1
     assert raft_node_4._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_4._log[2].entry.value == 8
-    assert raft_node_4._log[3].term == 1
+    assert raft_node_4._log[3].term == 2
     assert raft_node_4._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
-    assert raft_node_4._log[3].entry.value == 9
-    assert raft_node_4._commit_index == 4
+    assert raft_node_4._log[3].entry.value == 10
+    assert raft_node_4._commit_index == 3
 
-    assert len(raft_node_3._log) == 1 + 4
+    assert len(raft_node_3._log) == 1 + 3
     assert raft_node_3._log[0].term == 0
     assert raft_node_3._log[0].entry.name.value.tobytes().decode("utf-8") == ""  # index zero entry is empty
     assert raft_node_3._log[0].entry.value == 0
@@ -1033,10 +1026,10 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[2].term == 1
     assert raft_node_3._log[2].entry.name.value.tobytes().decode("utf-8") == "top_2"
     assert raft_node_3._log[2].entry.value == 8
-    assert raft_node_3._log[3].term == 1
+    assert raft_node_3._log[3].term == 2
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
-    assert raft_node_3._log[3].entry.value == 9
-    assert raft_node_3._commit_index == 4
+    assert raft_node_3._log[3].entry.value == 10
+    assert raft_node_3._commit_index == 3
 
     raft_node_2.close()
     raft_node_3.close()
