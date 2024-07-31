@@ -56,9 +56,7 @@ class RaftNode:
         self._state: RaftState = RaftState.FOLLOWER
 
         self._election_timer: asyncio.TimerHandle
-        self._next_election_timeout: float
         self._term_timer: asyncio.TimerHandle
-        self._next_term_timeout: float
 
         self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
         self._term_timeout = TERM_TIMEOUT
@@ -333,7 +331,6 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-
         # Reply false if term < currentTerm (§5.1)
         if request.term < self._term:
             _logger.info(
@@ -361,6 +358,18 @@ class RaftNode:
             self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
 
+        # Reject the request if the assumed log index does not exist on the local node.
+        if request.prev_log_index > len(self._log):
+            _logger.info(
+                c["append_entries"]
+                + "Node ID: %d -- Append entries request denied (log index doesn't exist - request log index (%d) > lenght of node's log (%d))"
+                + c["end_color"],
+                self._node.id,
+                request.prev_log_index,
+                len(self._log),
+            )
+            return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
+
         # Reply false if log doesn’t contain an entry at prevLogIndex
         # whose term matches prevLogTerm (§5.3)
         try:
@@ -384,6 +393,17 @@ class RaftNode:
                 len(self._log),
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
+        # Update the log with new entries - this will possibly require to rewrite existing entries.
+        if request.prev_log_index != len(self._log):
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
+                self._node.id,
+                request.prev_log_index,
+            )
+            number_of_entries_to_delete = len(self._log) - (request.prev_log_index + 1)
+            self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
+            del self._log[request.prev_log_index + 1 :]
+            self._commit_index = request.prev_log_index
 
         self._append_entries_processing(request)
         return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
@@ -398,27 +418,12 @@ class RaftNode:
         assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
 
         # If an existing entry conflicts with a new one (same index but different terms),
-        # delete the existing entry and all that follow it (§5.3)
         new_index = request.prev_log_index + 1
         _logger.info(
             c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"],
             self._node.id,
             new_index,
         )
-        for log_index, log_entry in enumerate(self._log[1:]):
-            if (
-                log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
-            ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
-                    self._node.id,
-                    log_index + 1,
-                )
-                number_of_entries_to_delete = len(self._log) - (log_index + 1)
-                self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
-                del self._log[log_index + 1 :]
-                self._commit_index = log_index
-                break
 
         # Append any new entries not already in the log
         # [in our implementation only a single entry is sent at a time]
