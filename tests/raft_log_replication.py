@@ -834,7 +834,7 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._state == RaftState.FOLLOWER
     assert raft_node_3._term == 2, "received heartbeat from LEADER"
     assert raft_node_3._voted_for == 42
-
+    await asyncio.sleep(ELECTION_TIMEOUT + 2)
     # check that all logs are saved from previous LEADER
     assert len(raft_node_2._log) == 1 + 3
     assert raft_node_2._log[0].term == 0
