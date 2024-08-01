@@ -703,12 +703,23 @@ class RaftNode:
             c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"],
             self._node.id,
         )
+
         loop = asyncio.get_event_loop()
         if hasattr(self, "_election_timer"):
             self._election_timer.cancel()
         self._election_timer = loop.call_later(
             self._election_timeout,
             lambda: asyncio.create_task(self._on_election_timeout()),
+        )
+
+        # Calculate and print the delay
+        scheduled_time = self._election_timer.when()
+        current_time = time.time()
+        delay = scheduled_time - current_time
+        _logger.info(
+            c["raft_logic"] + "Node ID: %d -- Delay until election timeout: %.2f seconds" + c["end_color"],
+            self._node.id,
+            delay,
         )
 
     def _reset_term_timeout(self) -> None:
