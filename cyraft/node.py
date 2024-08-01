@@ -626,9 +626,8 @@ class RaftNode:
                     if self._state != RaftState.LEADER:
                         return
                     self._next_index[remote_node_index] -= 1
-                    await self._send_append_entry(remote_node_index)
-                else:
-                    pass
+
+                await self._send_append_entry(remote_node_index)
         else:
             _logger.info(
                 c["raft_logic"] + "Node ID: %d -- Remote node %d log update failed (unreachable)" + c["end_color"],
