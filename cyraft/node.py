@@ -368,6 +368,7 @@ class RaftNode:
                 request.prev_log_index,
                 len(self._log),
             )
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
@@ -606,7 +607,8 @@ class RaftNode:
                     self._cluster[remote_node_index],
                 )
                 self._next_index[remote_node_index] += 1
-                # self._match_index[remote_node_index] += 1
+                if len(self._log) > self._next_index[remote_node_index]:
+                    await self._send_append_entry(remote_node_index)
             else:
                 if response.term > self._term:
                     _logger.info(
@@ -715,7 +717,7 @@ class RaftNode:
         # Calculate and print the delay
         scheduled_time = self._election_timer.when()
         current_time = time.time()
-        delay = scheduled_time - current_time
+        delay = abs(scheduled_time - current_time)
         _logger.info(
             c["raft_logic"] + "Node ID: %d -- Delay until election timeout: %.2f seconds" + c["end_color"],
             self._node.id,
