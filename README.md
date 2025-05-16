@@ -1,5 +1,8 @@
 # Cyraft
 
+⚠️⚠️⚠️ **OBSOLETE** The work is continued at <https://forum.opencyphal.org/t/rfc-zero-configuration-cyphal-with-named-topics/2376/8>.
+-----
+
 The objective is to implement the Raft algorithm as an exercise, with the intention of incorporating [named topics](http://wiki.ros.org/Topics) into pycyphal.
 
 This feature is significant because it enables Cyphal to serve as a communication layer between PX4 and ROS in the future.
