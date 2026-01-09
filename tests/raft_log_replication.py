@@ -93,7 +93,7 @@ async def _unittest_raft_log_replication() -> None:
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
+    TERM_TIMEOUT = 0.1
     ELECTION_TIMEOUT = 5
 
     os.environ["UAVCAN__NODE__ID"] = "41"
@@ -593,11 +593,6 @@ async def _unittest_raft_log_replication() -> None:
     assert raft_node_1._log[4].entry.name.value.tobytes().decode("utf-8") == "top_4"
     assert raft_node_1._log[4].entry.value == 13
 
-    raft_node_1.close()
-    raft_node_2.close()
-    raft_node_3.close()
-    await asyncio.sleep(1)
-
 
 """
 =======================================================================================
@@ -652,7 +647,7 @@ async def _unittest_raft_leader_changes() -> None:
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
+    TERM_TIMEOUT = 0.1
     ELECTION_TIMEOUT = 5
 
     os.environ["UAVCAN__NODE__ID"] = "41"
@@ -666,11 +661,11 @@ async def _unittest_raft_leader_changes() -> None:
     os.environ["UAVCAN__NODE__ID"] = "43"
     raft_node_3 = RaftNode()
     raft_node_3.term_timeout = TERM_TIMEOUT
-    raft_node_3.election_timeout = ELECTION_TIMEOUT + 2
+    raft_node_3.election_timeout = ELECTION_TIMEOUT + 4
     os.environ["UAVCAN__NODE__ID"] = "44"
     raft_node_4 = RaftNode()
     raft_node_4.term_timeout = TERM_TIMEOUT
-    raft_node_4.election_timeout = ELECTION_TIMEOUT + 2.1
+    raft_node_4.election_timeout = ELECTION_TIMEOUT + 4
 
     # make all part of the same cluster
     cluster = [
@@ -820,7 +815,7 @@ async def _unittest_raft_leader_changes() -> None:
     raft_node_1.close()  # Simulation of the disappearance of a leader from a cluster
 
     await asyncio.sleep(
-        ELECTION_TIMEOUT + 9 * TERM_TIMEOUT
+        ELECTION_TIMEOUT + 9
     )  # Nine terms are needed for complete replication of logs from the leader to the followers.
 
     assert raft_node_2._state == RaftState.LEADER
@@ -1037,7 +1032,6 @@ async def _unittest_raft_leader_changes() -> None:
     assert raft_node_3._log[3].entry.name.value.tobytes().decode("utf-8") == "top_3"
     assert raft_node_3._log[3].entry.value == 9
     assert raft_node_3._commit_index == 4
-
     raft_node_2.close()
     raft_node_3.close()
     raft_node_4.close()

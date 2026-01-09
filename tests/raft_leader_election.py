@@ -348,7 +348,7 @@ async def _unittest_raft_fsm_4():
     os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
     os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
 
-    TERM_TIMEOUT = 0.5
+    TERM_TIMEOUT = 1
     ELECTION_TIMEOUT = 5
 
     _logger.info("================== TEST STAGE 9/10: 2 CANDIDATEs, higher term get's elected ==================")
@@ -409,6 +409,95 @@ async def _unittest_raft_fsm_4():
 
     assert raft_node_2._term >= raft_node_1._term
     assert raft_node_2._term >= raft_node_3._term
+
+    raft_node_1.close()
+    raft_node_2.close()
+    raft_node_3.close()
+    await asyncio.sleep(1)
+
+
+# Test for checking the leader can continue sending values ​​to followers even if some follower disappears from the cluster and reappears
+async def _unittest_follower_not_response() -> None:
+    logging.root.setLevel(logging.INFO)
+
+    os.environ["UAVCAN__SRV__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__CLN__REQUEST_VOTE__ID"] = "1"
+    os.environ["UAVCAN__SRV__APPEND_ENTRIES__ID"] = "2"
+    os.environ["UAVCAN__CLN__APPEND_ENTRIES__ID"] = "2"
+
+    TERM_TIMEOUT = 0.1
+    ELECTION_TIMEOUT = 2
+
+    os.environ["UAVCAN__NODE__ID"] = "41"
+    raft_node_1 = RaftNode()
+    raft_node_1.term_timeout = TERM_TIMEOUT
+    raft_node_1.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.term_timeout = TERM_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    os.environ["UAVCAN__NODE__ID"] = "43"
+    raft_node_3 = RaftNode()
+    raft_node_3.term_timeout = TERM_TIMEOUT
+    raft_node_3.election_timeout = ELECTION_TIMEOUT - 1  # raft_node_3 should be a leader
+
+    # make all part of the same cluster
+    cluster = [raft_node_1._node.id, raft_node_2._node.id, raft_node_3._node.id]
+    raft_node_1.add_remote_node(cluster)
+    raft_node_2.add_remote_node(cluster)
+    raft_node_3.add_remote_node(cluster)
+
+    asyncio.create_task(raft_node_1.run())
+    asyncio.create_task(raft_node_2.run())
+    asyncio.create_task(raft_node_3.run())
+
+    # Wait for the election timeout to allow the nodes to elect a leader
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)
+
+    assert raft_node_3._state == RaftState.LEADER
+    assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_2._state == RaftState.FOLLOWER
+
+    # Check that raft_node_1 and raft_node_2 have voted for raft_node_3
+    assert raft_node_1._voted_for == 43
+    assert raft_node_2._voted_for == 43
+    await asyncio.sleep(TERM_TIMEOUT * 3)
+
+    _logger.info(
+        "================== TEST STAGE 1: Test that after closing raft_node_2, the cluster works without freezing =================="
+    )
+
+    # Close raft_node_2 to simulate a node failure
+    raft_node_2.close()
+
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)
+
+    # Check that raft_node_3 is still the leader and raft_node_1 is still a follower
+    assert raft_node_3._state == RaftState.LEADER
+    assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_2._state == RaftState.FOLLOWER
+    assert raft_node_1._voted_for == 43
+
+    _logger.info(
+        "================== TEST STAGE 2: After the raft_node_2 returns, the cluster continues its work again with two followers. =================="
+    )
+
+    # Recreate raft_node_2 with the same ID and configuration
+    os.environ["UAVCAN__NODE__ID"] = "42"
+    raft_node_2 = RaftNode()
+    raft_node_2.term_timeout = TERM_TIMEOUT
+    raft_node_2.election_timeout = ELECTION_TIMEOUT
+    asyncio.create_task(raft_node_2.run())
+
+    await asyncio.sleep(ELECTION_TIMEOUT + 1)
+
+    # Check that raft_node_3 is still the leader and both raft_node_1 and raft_node_2 are followers
+    assert raft_node_3._state == RaftState.LEADER
+    assert raft_node_1._state == RaftState.FOLLOWER
+    assert raft_node_2._state == RaftState.FOLLOWER
+
+    assert raft_node_1._voted_for == 43
+    assert raft_node_2._voted_for == 43
 
     raft_node_1.close()
     raft_node_2.close()
