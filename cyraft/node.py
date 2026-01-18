@@ -56,9 +56,7 @@ class RaftNode:
         self._state: RaftState = RaftState.FOLLOWER
 
         self._election_timer: asyncio.TimerHandle
-        self._next_election_timeout: float
         self._term_timer: asyncio.TimerHandle
-        self._next_term_timeout: float
 
         self._election_timeout: float = 0.15 + 0.15 * os.urandom(1)[0] / 255.0  # random between 150 and 300 ms
         self._term_timeout = TERM_TIMEOUT
@@ -333,42 +331,44 @@ class RaftNode:
             request,
             metadata.client_node_id,
         )
-
-        # heartbeat processing
-        if len(request.log_entry) == 0:  # empty means heartbeat
-            if request.term < self._term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- Heartbeat denied (term < currentTerm)" + c["end_color"],
-                    self._node.id,
-                )
-                return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
-            else:  # request.term >= self._term
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"],
-                    self._node.id,
-                )
-                if metadata.client_node_id != self._voted_for and request.term > self._term:
-                    _logger.info(
-                        c["append_entries"] + "Node ID: %d -- Heartbeat from new leader: %d" + c["end_color"],
-                        self._node.id,
-                        metadata.client_node_id,
-                    )
-                    self._voted_for = metadata.client_node_id
-                self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
-                self._term = request.term  # update term
-
-                return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
-
         # Reply false if term < currentTerm (§5.1)
         if request.term < self._term:
             _logger.info(
-                c["append_entries"]
-                + "Node ID: %d -- Append entries request denied (term (%d) < currentTerm (%d))"
-                + c["end_color"],
+                c["append_entries"] + "Node ID: %d -- Heartbeat denied (term (%d) < currentTerm (%d))" + c["end_color"],
                 self._node.id,
                 request.term,
                 self._term,
             )
+            return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
+        elif request.term > self._term:
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- Heartbeat from new leader: %d" + c["end_color"],
+                self._node.id,
+                metadata.client_node_id,
+            )
+            self._voted_for = metadata.client_node_id
+            self._term = request.term  # update term
+
+        # heartbeat processing
+        if len(request.log_entry) == 0:  # empty means heartbeat
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- Heartbeat received" + c["end_color"],
+                self._node.id,
+            )
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
+            return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
+
+        # Reject the request if the assumed log index does not exist on the local node.
+        if request.prev_log_index > len(self._log):
+            _logger.info(
+                c["append_entries"]
+                + "Node ID: %d -- Append entries request denied (log index doesn't exist - request log index (%d) > lenght of node's log (%d))"
+                + c["end_color"],
+                self._node.id,
+                request.prev_log_index,
+                len(self._log),
+            )
+            self._change_state(RaftState.FOLLOWER)  # this will reset the election timeout as well
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
 
         # Reply false if log doesn’t contain an entry at prevLogIndex
@@ -394,6 +394,20 @@ class RaftNode:
                 len(self._log),
             )
             return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=False)
+        # Update the log with new entries - this will possibly require to rewrite existing entries.
+        if (
+            request.prev_log_index + 1 != len(self._log) - 1
+            or request.log_entry[0].term != self._log[request.prev_log_index + 1].term
+        ):
+            _logger.info(
+                c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
+                self._node.id,
+                request.prev_log_index + 1,
+            )
+            number_of_entries_to_delete = len(self._log) - (request.prev_log_index + 1)
+            self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
+            del self._log[request.prev_log_index + 1 :]
+            self._commit_index = request.prev_log_index
 
         self._append_entries_processing(request)
         return sirius_cyber_corp.AppendEntries_1.Response(term=self._term, success=True)
@@ -408,27 +422,12 @@ class RaftNode:
         assert len(request.log_entry) == 1  # in our implementation only a single entry is sent at a time
 
         # If an existing entry conflicts with a new one (same index but different terms),
-        # delete the existing entry and all that follow it (§5.3)
         new_index = request.prev_log_index + 1
         _logger.info(
             c["append_entries"] + "Node ID: %d -- new_index: %d" + c["end_color"],
             self._node.id,
             new_index,
         )
-        for log_index, log_entry in enumerate(self._log[1:]):
-            if (
-                log_index + 1  # index + 1 because we skip the first entry (self._log[1:])
-            ) == new_index and log_entry.term != request.log_entry[0].term:
-                _logger.info(
-                    c["append_entries"] + "Node ID: %d -- deleting from: %d" + c["end_color"],
-                    self._node.id,
-                    log_index + 1,
-                )
-                number_of_entries_to_delete = len(self._log) - (log_index + 1)
-                self._next_index = [x - number_of_entries_to_delete for x in self._next_index]
-                del self._log[log_index + 1 :]
-                self._commit_index = log_index
-                break
 
         # Append any new entries not already in the log
         # [in our implementation only a single entry is sent at a time]
@@ -537,13 +536,14 @@ class RaftNode:
                 if response.term > self._term:
                     _logger.info(
                         c["raft_logic"]
-                        + "Node ID: %d -- heartbeat to node %d failed, converting to follower"
+                        + "Node ID: %d -- heartbeat to node %d failed, follower term > leader term (%d > %d)"
                         + c["end_color"],
                         self._node.id,
                         remote_node_id,
+                        response.term,
+                        self._term,
                     )
-                    self._change_state(RaftState.FOLLOWER)
-                    self._voted_for = None
+                    self._term = response.term
                     return
                 elif response.term == self._term:
                     if self._state != RaftState.LEADER:
@@ -610,26 +610,27 @@ class RaftNode:
                     self._cluster[remote_node_index],
                 )
                 self._next_index[remote_node_index] += 1
-                # self._match_index[remote_node_index] += 1
+                if len(self._log) > self._next_index[remote_node_index]:
+                    await self._send_append_entry(remote_node_index)
             else:
                 if response.term > self._term:
                     _logger.info(
                         c["raft_logic"]
-                        + "Node ID: %d -- Remote node %d log update failed, converting to follower"
+                        + "Node ID: %d -- heartbeat to node %d failed, follower term > leader term (%d > %d)"
                         + c["end_color"],
                         self._node.id,
                         self._cluster[remote_node_index],
+                        response.term,
+                        self._term,
                     )
-                    self._change_state(RaftState.FOLLOWER)
-                    self._voted_for = None
+                    self._term = response.term
                     return
                 elif response.term == self._term:
                     if self._state != RaftState.LEADER:
                         return
                     self._next_index[remote_node_index] -= 1
-                    await self._send_append_entry(remote_node_index)
-                else:
-                    pass
+
+                await self._send_append_entry(remote_node_index)
         else:
             _logger.info(
                 c["raft_logic"] + "Node ID: %d -- Remote node %d log update failed (unreachable)" + c["end_color"],
@@ -706,12 +707,23 @@ class RaftNode:
             c["raft_logic"] + "Node ID: %d -- Resetting election timeout" + c["end_color"],
             self._node.id,
         )
+
         loop = asyncio.get_event_loop()
         if hasattr(self, "_election_timer"):
             self._election_timer.cancel()
         self._election_timer = loop.call_later(
             self._election_timeout,
             lambda: asyncio.create_task(self._on_election_timeout()),
+        )
+
+        # Calculate and print the delay
+        scheduled_time = self._election_timer.when()
+        current_time = time.time()
+        delay = abs(scheduled_time - current_time)
+        _logger.info(
+            c["raft_logic"] + "Node ID: %d -- Delay until election timeout: %.2f seconds" + c["end_color"],
+            self._node.id,
+            delay,
         )
 
     def _reset_term_timeout(self) -> None:
@@ -780,6 +792,7 @@ class RaftNode:
                 )
                 await self._send_heartbeat(remote_node_index)
             else:  # remote log is not up to date, send append entries request
+                self._next_index[remote_node_index] = self._commit_index
                 await self._send_append_entry(remote_node_index)
 
     async def run(self) -> None:

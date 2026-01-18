@@ -769,7 +769,7 @@ async def _unittest_raft_node_append_entries_rpc() -> None:
     response = await raft_node._serve_append_entries(request, metadata)
     assert response.success == False
 
-    assert raft_node._term == 10
+    assert raft_node._term == 11
     assert raft_node._voted_for == 42
 
     assert len(raft_node._log) == 1 + 4
